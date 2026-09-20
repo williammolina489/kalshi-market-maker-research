@@ -3,9 +3,10 @@ name: Recover E001 implementation bundle
 on:
   push:
     branches:
-      - research/e001-collector-smoke
+      - recovery/e001-partial-stream-inspect
     paths:
       - .github/workflows/recover-e001-bundle.yml
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,28 +16,242 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Recover exact prior-session bundle
+
+      - name: Recover partial decompressed stream without repair
+        id: recover
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p /tmp/recovery/reports /tmp/recovery/gnu-extracted /tmp/recovery/extracted-exact
+
           gh api repos/${GITHUB_REPOSITORY}/git/blobs/673f0cf8f1f432c2a5d720df1b62dd5a6a82c49a --jq .content \
-            | tr -d '\n' | base64 -d > /tmp/outer.txt
-          base64 -d /tmp/outer.txt > /tmp/recovered.gz
-          gzip -dc /tmp/recovered.gz > /tmp/recovered
-          echo "RECOVERED_TYPE=$(file -b /tmp/recovered)"
-          echo "RECOVERED_BYTES=$(wc -c </tmp/recovered)"
-          echo "RECOVERED_SHA256=$(sha256sum /tmp/recovered | cut -d' ' -f1)"
-          if tar -tf /tmp/recovered >/tmp/tarlist 2>/dev/null; then
-            echo "FORMAT=TAR"
-            cat /tmp/tarlist
-          else
-            echo "FORMAT=NON_TAR"
-            python - <<'PY'
-          from pathlib import Path
-          p=Path('/tmp/recovered')
-          data=p.read_bytes()
-          print(data[:8000].decode('utf-8','replace'))
+            | tr -d '\n' | base64 -d > /tmp/recovery/outer.txt
+
+          base64 -d /tmp/recovery/outer.txt > /tmp/recovery/recovered.gz
+
+          set +e
+          gzip -dc /tmp/recovery/recovered.gz > /tmp/recovery/recovered.tar
+          GZIP_STATUS=$?
+          set -e
+
+          echo "$GZIP_STATUS" > /tmp/recovery/reports/gzip-status.txt
+          wc -c /tmp/recovery/outer.txt /tmp/recovery/recovered.gz /tmp/recovery/recovered.tar \
+            | tee /tmp/recovery/reports/byte-counts.txt
+          sha256sum /tmp/recovery/recovered.gz /tmp/recovery/recovered.tar \
+            | tee /tmp/recovery/reports/stream-sha256.txt
+          file /tmp/recovery/recovered.tar | tee /tmp/recovery/reports/file-type.txt
+          xxd -l 4096 /tmp/recovery/recovered.tar | tee /tmp/recovery/reports/xxd-head.txt
+
+          set +e
+          tar -tvf /tmp/recovery/recovered.tar \
+            > /tmp/recovery/reports/tar-list.txt \
+            2> /tmp/recovery/reports/tar-errors.txt
+          TAR_STATUS=$?
+          tar --ignore-zeros -tvf /tmp/recovery/recovered.tar \
+            > /tmp/recovery/reports/tar-ignore-list.txt \
+            2> /tmp/recovery/reports/tar-ignore-errors.txt
+          TAR_IGNORE_STATUS=$?
+          tar -xvf /tmp/recovery/recovered.tar -C /tmp/recovery/gnu-extracted \
+            > /tmp/recovery/reports/tar-extract-list.txt \
+            2> /tmp/recovery/reports/tar-extract-errors.txt
+          TAR_EXTRACT_STATUS=$?
+          set -e
+
+          printf '%s\n' "$TAR_STATUS" > /tmp/recovery/reports/tar-status.txt
+          printf '%s\n' "$TAR_IGNORE_STATUS" > /tmp/recovery/reports/tar-ignore-status.txt
+          printf '%s\n' "$TAR_EXTRACT_STATUS" > /tmp/recovery/reports/tar-extract-status.txt
+
+          echo "GZIP_STATUS=$GZIP_STATUS"
+          echo "TAR_STATUS=$TAR_STATUS"
+          echo "TAR_IGNORE_STATUS=$TAR_IGNORE_STATUS"
+          echo "TAR_EXTRACT_STATUS=$TAR_EXTRACT_STATUS"
+
+      - name: Parse raw tar structure and extract only provably complete members
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path, PurePosixPath
+
+          tar_path = Path("/tmp/recovery/recovered.tar")
+          out_dir = Path("/tmp/recovery/extracted-exact")
+          reports = Path("/tmp/recovery/reports")
+          data = tar_path.read_bytes()
+          n = len(data)
+
+          def parse_num(field: bytes) -> int:
+              if not field:
+                  return 0
+              if field[0] & 0x80:
+                  raw = bytearray(field)
+                  negative = bool(raw[0] & 0x40)
+                  raw[0] &= 0x7F
+                  value = int.from_bytes(raw, "big", signed=False)
+                  if negative:
+                      bits = len(raw) * 8 - 1
+                      value -= 1 << bits
+                  return value
+              text = field.rstrip(b"\x00 ").lstrip(b" ")
+              return int(text or b"0", 8)
+
+          def cstr(field: bytes) -> str:
+              return field.split(b"\x00", 1)[0].decode("utf-8", "surrogateescape")
+
+          def checksum_ok(block: bytes) -> bool:
+              try:
+                  stored = parse_num(block[148:156])
+              except Exception:
+                  return False
+              unsigned = sum(block[:148]) + (32 * 8) + sum(block[156:])
+              signed = sum((b if b < 128 else b - 256) for b in block[:148]) + (32 * 8) + sum(
+                  (b if b < 128 else b - 256) for b in block[156:]
+              )
+              return stored in (unsigned, signed)
+
+          members = []
+          offset = 0
+          zero_blocks = 0
+          saw_eoa = False
+          parse_stop = None
+
+          while offset + 512 <= n:
+              block = data[offset:offset+512]
+              if block == b"\x00" * 512:
+                  zero_blocks += 1
+                  if zero_blocks >= 2:
+                      saw_eoa = True
+                      parse_stop = f"two zero blocks at offset {offset-512}"
+                      break
+                  offset += 512
+                  continue
+              zero_blocks = 0
+
+              name = cstr(block[0:100])
+              prefix = cstr(block[345:500])
+              path = f"{prefix}/{name}" if prefix else name
+              typeflag = cstr(block[156:157]) or "0"
+              try:
+                  size = parse_num(block[124:136])
+              except Exception as exc:
+                  parse_stop = f"invalid size at offset {offset}: {exc}"
+                  break
+
+              data_start = offset + 512
+              data_end = data_start + size
+              padded_end = data_start + ((size + 511) // 512) * 512
+              complete = padded_end <= n
+              member = {
+                  "path": path,
+                  "typeflag": typeflag,
+                  "size": size,
+                  "header_offset": offset,
+                  "data_start": data_start,
+                  "data_end": data_end,
+                  "padded_end": padded_end,
+                  "complete": complete,
+                  "header_checksum_valid": checksum_ok(block),
+              }
+              members.append(member)
+
+              if not complete:
+                  parse_stop = f"member truncated: {path}"
+                  break
+              offset = padded_end
+
+          # Extract only complete regular files from exact byte ranges.
+          hashes = []
+          unsafe = []
+          for m in members:
+              if not m["complete"]:
+                  continue
+              path = PurePosixPath(m["path"])
+              if path.is_absolute() or ".." in path.parts:
+                  unsafe.append(m["path"])
+                  continue
+              if m["typeflag"] not in ("0", "\x00", "7"):
+                  continue
+              target = out_dir.joinpath(*path.parts)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              payload = data[m["data_start"]:m["data_end"]]
+              target.write_bytes(payload)
+              hashes.append({
+                  "path": m["path"],
+                  "size": len(payload),
+                  "sha256": hashlib.sha256(payload).hexdigest(),
+              })
+
+          with (reports / "members.json").open("w", encoding="utf-8") as f:
+              json.dump(members, f, indent=2)
+          with (reports / "complete-files.json").open("w", encoding="utf-8") as f:
+              json.dump(hashes, f, indent=2)
+
+          with (reports / "complete-members.tsv").open("w", encoding="utf-8") as f:
+              f.write("path\tsize\ttypeflag\theader_offset\tdata_end\tpadded_end\tcomplete\theader_checksum_valid\n")
+              for m in members:
+                  f.write(
+                      f"{m['path']}\t{m['size']}\t{m['typeflag']}\t{m['header_offset']}\t"
+                      f"{m['data_end']}\t{m['padded_end']}\t{int(m['complete'])}\t"
+                      f"{int(m['header_checksum_valid'])}\n"
+                  )
+
+          with (reports / "complete-files-sha256.tsv").open("w", encoding="utf-8") as f:
+              f.write("sha256\tsize\tpath\n")
+              for h in hashes:
+                  f.write(f"{h['sha256']}\t{h['size']}\t{h['path']}\n")
+
+          summary = {
+              "decompressed_bytes": n,
+              "member_headers_seen": len(members),
+              "complete_members": sum(1 for m in members if m["complete"]),
+              "incomplete_members": sum(1 for m in members if not m["complete"]),
+              "complete_regular_files_extracted": len(hashes),
+              "saw_two_zero_block_end_marker": saw_eoa,
+              "parse_stop": parse_stop,
+              "unsafe_paths": unsafe,
+          }
+          (reports / "raw-tar-summary.json").write_text(
+              json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+          )
+          print(json.dumps(summary, indent=2))
+          print("COMPLETE FILES:")
+          for h in hashes:
+              print(f"{h['sha256']}  {h['size']:>9}  {h['path']}")
           PY
-          fi
+
+      - name: Inspect recovered project shape without editing
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "=== directories ==="
+            find /tmp/recovery/extracted-exact -maxdepth 3 -type d -print | sort
+            echo "=== files ==="
+            find /tmp/recovery/extracted-exact -type f -printf '%P\t%s\n' | sort
+            echo "=== Python syntax compilation (informational only) ==="
+            set +e
+            python -m compileall -q /tmp/recovery/extracted-exact
+            rc=$?
+            set -e
+            echo "compileall_exit=$rc"
+          } | tee /tmp/recovery/reports/project-shape.txt
+
+      - name: Upload immutable recovery inspection artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-partial-recovery-${{ github.run_id }}
+          path: |
+            /tmp/recovery/recovered.gz
+            /tmp/recovery/recovered.tar
+            /tmp/recovery/outer.txt
+            /tmp/recovery/reports
+            /tmp/recovery/extracted-exact
+            /tmp/recovery/gnu-extracted
+          retention-days: 90
+          if-no-files-found: error

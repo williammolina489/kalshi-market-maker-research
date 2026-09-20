@@ -1,0 +1,75 @@
+name: Preserve known dangling E001 recovery objects
+
+on:
+  push:
+    branches:
+      - recovery/e001-partial-stream-inspect
+    paths:
+      - .github/workflows/recover-known-objects.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch exact known blobs by object identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=/tmp/known-e001-objects
+          mkdir -p "$root/files"
+          cat > "$root/object-map.tsv" <<'EOF'
+          751eb467a909f75b70c7a44f47cec0f7283a62df	.github/workflows/ci.yml
+          efe2045600eca6360f65e253d48bf9a86101c986	.github/workflows/e001-smoke-bootstrap.yml
+          eacaeb93469eefe57534268c4f5053e0d7cd2e1b	.github/workflows/e001-smoke-finalize.yml
+          241baa62e3d005a039aec57a7b14cc91f0430e18	.github/workflows/e001-smoke-segment.dangling-variant.yml
+          e7c90b01fe5b13d7fca4f04de7c69c6529ac8180	ARCHITECTURE.md
+          09bd20cb0aa71a8498a7b644a44015a8406b3b9a	DATA_SOURCES.md
+          a27a65c63d5ec106c02831f7aa0d2e7e0986f9a1	EXPERIMENTS.md
+          0badffb431d8aa433e1c47556e0fe5fee48862bc	PROJECT_STATE.md
+          fba2168bfad218937a375d3900381b76059d9b2d	ROADMAP.md
+          d502d6aeacfc4a9438593b695b7ab11b59d12a37	SECURITY.md
+          23b5197848451a3db32c120bce9d6bdd0c99b637	docs/COLLECTOR_RUNBOOK.md
+          7b17ce693cb1d31f192288a5c3b3739b0ec11adb	pyproject.toml
+          13f244f73e7cfc863f6a06046094bd4599b3cec9	research/API_CONTRACT_REVALIDATION.md
+          436edb494deb34567b1841c36eeaed091fcff6c0	research/E001_SMOKE_PROTOCOL.md
+          17268372f629b37d5d1ea6a7060a406fcb7a7831	research/E001_SMOKE_RESULT.md
+          ff9f17f3ce25b17d959de754169a2e2cbf77d2e3	src/kalshi_mm/api.py
+          673f0cf8f1f432c2a5d720df1b62dd5a6a82c49a	recovery.bundle.b64
+          EOF
+
+          printf 'git_blob_sha\tsha256\tbytes\tpath\tverified_git_identity\n' > "$root/manifest.tsv"
+          while IFS=$'\t' read -r expected path; do
+            [ -n "$expected" ] || continue
+            target="$root/files/$path"
+            mkdir -p "$(dirname "$target")"
+            gh api "repos/${GITHUB_REPOSITORY}/git/blobs/$expected" --jq .content \
+              | tr -d '\n' | base64 -d > "$target"
+            actual=$(git hash-object "$target")
+            sha256=$(sha256sum "$target" | cut -d' ' -f1)
+            bytes=$(wc -c < "$target")
+            verified=0
+            if [ "$actual" = "$expected" ]; then verified=1; fi
+            printf '%s\t%s\t%s\t%s\t%s\n' "$expected" "$sha256" "$bytes" "$path" "$verified" \
+              | tee -a "$root/manifest.tsv"
+          done < "$root/object-map.tsv"
+
+          if grep -q $'\t0$' "$root/manifest.tsv"; then
+            echo "Git object identity verification failed" >&2
+            exit 1
+          fi
+
+      - name: Upload exact known-object recovery set
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-known-dangling-objects-${{ github.run_id }}
+          path: /tmp/known-e001-objects
+          retention-days: 90
+          if-no-files-found: error
+          include-hidden-files: true

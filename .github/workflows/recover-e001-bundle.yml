@@ -1,0 +1,42 @@
+name: Recover E001 implementation bundle
+
+on:
+  push:
+    branches:
+      - research/e001-collector-smoke
+    paths:
+      - .github/workflows/recover-e001-bundle.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recover exact prior-session bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api repos/${GITHUB_REPOSITORY}/git/blobs/673f0cf8f1f432c2a5d720df1b62dd5a6a82c49a --jq .content \
+            | tr -d '\n' | base64 -d > /tmp/outer.txt
+          base64 -d /tmp/outer.txt > /tmp/recovered.gz
+          gzip -dc /tmp/recovered.gz > /tmp/recovered
+          echo "RECOVERED_TYPE=$(file -b /tmp/recovered)"
+          echo "RECOVERED_BYTES=$(wc -c </tmp/recovered)"
+          echo "RECOVERED_SHA256=$(sha256sum /tmp/recovered | cut -d' ' -f1)"
+          if tar -tf /tmp/recovered >/tmp/tarlist 2>/dev/null; then
+            echo "FORMAT=TAR"
+            cat /tmp/tarlist
+          else
+            echo "FORMAT=NON_TAR"
+            python - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/recovered')
+          data=p.read_bytes()
+          print(data[:8000].decode('utf-8','replace'))
+          PY
+          fi

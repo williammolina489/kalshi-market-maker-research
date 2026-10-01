@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from .client import ReadOnlyKalshiClient
@@ -66,10 +66,10 @@ class Collector:
 
     @staticmethod
     def _now(value: datetime | None) -> datetime:
-        observed = value or datetime.now(timezone.utc)
+        observed = value or datetime.now(UTC)
         if observed.tzinfo is None or observed.utcoffset() is None:
             raise ValueError("timezone-aware datetime required")
-        return observed.astimezone(timezone.utc)
+        return observed.astimezone(UTC)
 
     def discover_markets(self, *, now: datetime | None = None) -> list[str]:
         observed = self._now(now)

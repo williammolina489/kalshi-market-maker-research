@@ -4,7 +4,7 @@ import gzip
 import hashlib
 import inspect
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -30,7 +30,7 @@ from kalshi_mm.storage import AppendOnlyStore
 
 ET = ZoneInfo("America/New_York")
 NOW = datetime(2026, 9, 22, 12, 0, tzinfo=ET)
-UTC_NOW = NOW.astimezone(timezone.utc)
+UTC_NOW = NOW.astimezone(UTC)
 RANGES = (
     PriceRange(Decimal("0.00"), Decimal("0.49"), Decimal("0.01")),
     PriceRange(Decimal("0.50"), Decimal("1.00"), Decimal("0.05")),
@@ -150,8 +150,8 @@ def test_off_tick_prices_are_rejected() -> None:
 
 
 def test_quote_window_uses_america_new_york_and_dst() -> None:
-    summer = datetime(2026, 7, 1, 13, 0, tzinfo=timezone.utc)
-    winter = datetime(2026, 12, 1, 14, 0, tzinfo=timezone.utc)
+    summer = datetime(2026, 7, 1, 13, 0, tzinfo=UTC)
+    winter = datetime(2026, 12, 1, 14, 0, tzinfo=UTC)
     assert in_quote_window(summer)
     assert in_quote_window(winter)
 

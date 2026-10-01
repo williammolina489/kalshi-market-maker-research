@@ -48,7 +48,7 @@ class TradeContinuity:
             raise TradeContinuityError("malformed next cursor")
         if requested_cursor is not None and next_cursor == requested_cursor and trades:
             raise TradeContinuityError("non-advancing trade cursor")
-        self.cursor = next_cursor
+        self.cursor = next_cursor or None
         return accepted
 
 
@@ -62,7 +62,10 @@ class Collector:
         self.client = client
         self.store = store
         self.scheduler = scheduler or CadenceScheduler()
-        self.trade_continuity = TradeContinuity(cursor=self.scheduler.state.trade_cursor)
+        self.trade_continuity = TradeContinuity(
+            cursor=self.scheduler.state.trade_cursor,
+        )
+        self.trade_continuity_by_ticker: dict[str, TradeContinuity] = {}
 
     @staticmethod
     def _now(value: datetime | None) -> datetime:
@@ -70,6 +73,16 @@ class Collector:
         if observed.tzinfo is None or observed.utcoffset() is None:
             raise ValueError("timezone-aware datetime required")
         return observed.astimezone(UTC)
+
+    def continuity_for(self, ticker: str) -> TradeContinuity:
+        continuity = self.trade_continuity_by_ticker.get(ticker)
+        if continuity is None:
+            continuity = TradeContinuity(
+                cursor=self.scheduler.state.trade_cursors.get(ticker),
+                seen_trade_ids=set(self.scheduler.state.seen_trade_ids.get(ticker, [])),
+            )
+            self.trade_continuity_by_ticker[ticker] = continuity
+        return continuity
 
     def discover_markets(self, *, now: datetime | None = None) -> list[str]:
         observed = self._now(now)
@@ -103,6 +116,27 @@ class Collector:
             received_at=observed,
             endpoint=f"/markets/{ticker}/orderbook",
             params={"ticker": ticker, "depth": 0},
+        )
+        return payload
+
+    def collect_orderbooks(
+        self,
+        tickers: list[str],
+        *,
+        scheduled_at: datetime | None = None,
+        requested_at: datetime | None = None,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        observed = self._now(now)
+        payload = self.client.get_orderbooks(tickers)
+        self.store.append(
+            source="orderbooks_batch",
+            payload=payload,
+            scheduled_at=scheduled_at,
+            requested_at=requested_at,
+            received_at=observed,
+            endpoint="/markets/orderbooks",
+            params={"tickers": tickers},
         )
         return payload
 
@@ -163,9 +197,10 @@ class Collector:
         now: datetime | None = None,
     ) -> list[dict[str, Any]]:
         observed = self._now(now)
-        requested_cursor = self.trade_continuity.cursor if cursor is None else cursor
+        continuity = self.continuity_for(ticker)
+        requested_cursor = continuity.cursor if cursor is None else cursor
         payload = self.client.get_trades(ticker=ticker, cursor=requested_cursor, limit=1000)
-        rows = self.trade_continuity.accept_page(payload, requested_cursor=requested_cursor)
+        rows = continuity.accept_page(payload, requested_cursor=requested_cursor)
         self.store.append(
             source="trades",
             payload=payload,
@@ -174,5 +209,10 @@ class Collector:
             params={"ticker": ticker, "cursor": requested_cursor, "limit": 1000},
         )
         watermark = str(rows[-1].get("created_time")) if rows else None
-        self.scheduler.mark_trade_page(cursor=self.trade_continuity.cursor, watermark=watermark)
+        self.scheduler.mark_trade_page(
+            ticker=ticker,
+            cursor=continuity.cursor,
+            watermark=watermark,
+            seen_trade_ids=continuity.seen_trade_ids,
+        )
         return rows

@@ -74,9 +74,19 @@ class AppendOnlyStore:
 
     def _write_manifest(self) -> None:
         digest = hashlib.sha256(self.segment.read_bytes()).hexdigest()
+        entries: list[dict[str, str]] = []
+        if self.manifest.exists():
+            try:
+                current = json.loads(self.manifest.read_text())
+                entries = list(current.get("segments", []))
+            except (OSError, json.JSONDecodeError, TypeError):
+                entries = []
+        replacement = {"path": self.segment.name, "sha256": digest}
+        entries = [entry for entry in entries if entry.get("path") != self.segment.name]
+        entries.append(replacement)
         manifest = {
             "schema_version": COLLECTOR_SCHEMA_VERSION,
-            "segments": [{"path": self.segment.name, "sha256": digest}],
+            "segments": entries,
         }
         self.manifest.write_text(json.dumps(manifest, sort_keys=True, indent=2) + "\n")
 

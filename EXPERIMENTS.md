@@ -2,7 +2,7 @@
 
 | ID | Name | Status | Preregistered | Results viewed? |
 |---|---|---|---|---|
-| E001 | Prospective Passive-Quote Viability | PREREGISTERED | 2026-09-19 | No |
+| E001 | Prospective Passive-Quote Viability | PREREGISTERED / NOT RUNNING | 2026-09-19 | No |
 
 ## Status vocabulary
 

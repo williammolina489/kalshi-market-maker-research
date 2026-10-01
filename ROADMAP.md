@@ -10,11 +10,11 @@ Complete: documentation, package scaffold, read-only public API client, economic
 
 ## Phase 2 — Prospective collector
 
-Next. Collect immutable raw market metadata, full available order-book depth, public trades, exchange status, and incentive definitions. Store raw observations separately from derived analytics. Never backfill missing book states from future observations.
+Rebuilt from the canonical specification. Collect immutable raw market metadata, full available order-book depth, public trades, exchange status, and incentive definitions. Store raw observations separately from derived analytics. Never backfill missing book states from future observations. Await human review before smoke.
 
 ## Phase 3 — E001 integrity smoke test
 
-Run 24 hours without calculating strategy performance. Verify timestamp discipline, pagination continuity, market lifecycle handling, quote-window coverage, and provenance. Fix collector defects before the preregistered evidence window.
+Manual-only next gate; not run. Verify timestamp discipline, pagination continuity, market lifecycle handling, quote-window coverage, and provenance without calculating strategy performance. Fix collector defects before the preregistered evidence window.
 
 ## Phase 4 — E001 prospective evidence
 

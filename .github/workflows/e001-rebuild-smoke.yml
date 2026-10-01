@@ -1,0 +1,24 @@
+name: E001 rebuild smoke (manual only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      chunk_minutes:
+        description: "Bounded collection chunk length"
+        required: true
+        default: "60"
+        type: string
+
+jobs:
+  validate-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e '.[dev]'
+      - run: python -m pytest
+      - run: python -m ruff check .
+      - run: echo "Validation only. This workflow does not start the 24-hour smoke or E001."

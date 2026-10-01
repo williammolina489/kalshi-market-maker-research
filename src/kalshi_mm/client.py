@@ -21,10 +21,7 @@ def _stdlib_get_json(url: str, timeout: float) -> JsonDict:
 
 
 class ReadOnlyKalshiClient:
-    """GET-only client.
-
-    There is deliberately no generic request method, authentication support, or order endpoint.
-    """
+    """GET-only public-data client with no authentication or order surface."""
 
     def __init__(
         self,
@@ -54,6 +51,9 @@ class ReadOnlyKalshiClient:
 
     def get_series(self, ticker: str) -> JsonDict:
         return self._get(f"/series/{ticker}")
+
+    def get_event(self, event_ticker: str) -> JsonDict:
+        return self._get(f"/events/{event_ticker}")
 
     def get_markets(
         self, *, series_ticker: str, status: str = "open", limit: int = 100
@@ -92,8 +92,14 @@ class ReadOnlyKalshiClient:
             },
         )
 
-    def get_incentives(self, *, status: str = "active", limit: int = 1000) -> JsonDict:
+    def get_incentives(
+        self,
+        *,
+        status: str = "active",
+        limit: int = 1000,
+        cursor: str | None = None,
+    ) -> JsonDict:
         return self._get(
             "/incentive_programs",
-            {"status": status, "limit": limit},
+            {"status": status, "limit": limit, "cursor": cursor},
         )

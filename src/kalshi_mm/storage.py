@@ -6,7 +6,7 @@ import gzip
 import hashlib
 import json
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +23,7 @@ def _iso(value: datetime | None) -> str | None:
         return None
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("timezone-aware datetime required")
-    return value.astimezone(timezone.utc).isoformat()
+    return value.astimezone(UTC).isoformat()
 
 
 class AppendOnlyStore:
@@ -52,7 +52,7 @@ class AppendOnlyStore:
         params: dict[str, Any] | None = None,
         error: str | None = None,
     ) -> str:
-        received = received_at or datetime.now(timezone.utc)
+        received = received_at or datetime.now(UTC)
         row: dict[str, Any] = {
             "schema_version": COLLECTOR_SCHEMA_VERSION,
             "collector_commit": self.collector_commit,
@@ -68,8 +68,7 @@ class AppendOnlyStore:
         content_hash = hashlib.sha256(_canonical(row)).hexdigest()
         row["content_sha256"] = content_hash
         with gzip.open(self.segment, "at", encoding="utf-8") as handle:
-            handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "
-")
+            handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
         self._write_manifest()
         return content_hash
 
@@ -79,8 +78,7 @@ class AppendOnlyStore:
             "schema_version": COLLECTOR_SCHEMA_VERSION,
             "segments": [{"path": self.segment.name, "sha256": digest}],
         }
-        self.manifest.write_text(json.dumps(manifest, sort_keys=True, indent=2) + "
-")
+        self.manifest.write_text(json.dumps(manifest, sort_keys=True, indent=2) + "\n")
 
     def replay(self) -> Iterator[dict[str, Any]]:
         if not self.manifest.exists():

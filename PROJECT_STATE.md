@@ -33,9 +33,10 @@ Selection is structural, not return-based: recurring daily events, objective pub
 ## Rebuild status
 
 - Immutable compressed JSONL storage, manifests, deterministic replay, restart state, cadence definitions, conservative queue/inventory simulation, and performance-blinded smoke reporting are implemented.
+- Rebuild PR #1 was reviewed and merged as `04ef07ffb2106e6b96807de86727665185e72e15`; post-merge CI passed.
 - Manual-only smoke tooling exists but has not been run. No 24-hour smoke or 30-day E001 window has started.
 - The first-party orderbook authentication rendering versus unauthenticated Stage-0 runtime behavior is documented in `research/API_CONTRACT_REVALIDATION.md`.
 
 ## Exact next step
 
-Human review of the rebuild PR, then an explicitly authorized non-performance 24-hour integrity smoke test. Only after integrity review should the 30-calendar-day E001 evidence window be started. Do not compute E001 P/L during the smoke test.
+The rebuild PR was reviewed and merged on 2026-10-01. The next gate is an explicitly authorized non-performance 24-hour integrity smoke test. The smoke has not started. Only after integrity review should the 30-calendar-day E001 evidence window be started. Do not compute E001 P/L during the smoke test.

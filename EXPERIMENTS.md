@@ -14,4 +14,4 @@ Failed experiments remain in this file permanently. A materially changed strateg
 
 Frozen specification: `research/E001_PREREGISTRATION.md`.
 
-No E001 performance may be calculated from data observed before the preregistration commit. The first 24-hour collector smoke test is infrastructure-only and must not calculate strategy P/L, fill-rate performance, or promotion metrics.
+The clean collector rebuild was reviewed and merged on 2026-10-01. E001 remains PREREGISTERED / NOT RUNNING and performance remains unviewed. No E001 performance may be calculated from data observed before the preregistration commit. The first 24-hour collector smoke test is infrastructure-only, has not started, and must not calculate strategy P/L, fill-rate performance, or promotion metrics.

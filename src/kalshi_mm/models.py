@@ -1,4 +1,4 @@
-"""Lossless research-facing observation models."""
+"""Typed, lossless models for public observations and derived smoke state."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ class RawOrderBookSnapshot:
     market_ticker: str
     yes_bids: tuple[BookLevel, ...]
     no_bids: tuple[BookLevel, ...]
-    source: Literal["rest", "websocket"]
+    source: Literal["rest", "websocket"] = "rest"
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,8 +39,11 @@ class RawTrade:
     created_at_utc: datetime
     count: Decimal
     yes_price: Decimal
-    taker_book_side: Literal["bid", "ask"]
+    taker_book_side: str
     is_block_trade: bool
+    no_price: Decimal | None = None
+    taker_outcome_side: str | None = None
+    taker_side: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,3 +56,27 @@ class DerivedTopOfBook:
     midpoint: Decimal
     spread: Decimal
     microprice: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class PriceRange:
+    start: Decimal
+    end: Decimal
+    tick_size: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class MarketMetadata:
+    ticker: str
+    status: str
+    close_time: datetime
+    expiration_time: datetime | None
+    price_ranges: tuple[PriceRange, ...]
+    rules_primary: Any
+    rules_secondary: Any
+    fee_metadata: Any
+    settlement_sources: Any
+
+
+class IntegrityError(ValueError):
+    """Raised when an immutable segment or replay stream is not trustworthy."""

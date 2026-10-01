@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 
@@ -40,8 +40,7 @@ class RestartState:
                 sort_keys=True,
                 indent=2,
             )
-            + "
-"
+            + "\n"
         )
 
 
@@ -63,11 +62,11 @@ class CadenceScheduler:
 
     def due_slots(self, stream: str, now: datetime) -> list[datetime]:
         self._validate_stream(stream)
-        now_utc = now.astimezone(timezone.utc)
+        now_utc = now.astimezone(UTC)
         raw = self.state.next_due.get(stream)
         if raw is None:
             return []
-        due = datetime.fromisoformat(raw).astimezone(timezone.utc)
+        due = datetime.fromisoformat(raw).astimezone(UTC)
         slots: list[datetime] = []
         step = timedelta(seconds=self.CADENCE_SECONDS[stream])
         while due <= now_utc:
@@ -81,7 +80,7 @@ class CadenceScheduler:
     def mark_received(self, stream: str, *, scheduled_at: datetime, received_at: datetime) -> None:
         self._validate_stream(stream)
         self.state.last_received[stream] = self._utc_iso(received_at)
-        next_due = scheduled_at.astimezone(timezone.utc) + timedelta(
+        next_due = scheduled_at.astimezone(UTC) + timedelta(
             seconds=self.CADENCE_SECONDS[stream]
         )
         self.state.next_due[stream] = next_due.isoformat()
@@ -95,7 +94,7 @@ class CadenceScheduler:
     def _utc_iso(value: datetime) -> str:
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("timezone-aware datetime required")
-        return value.astimezone(timezone.utc).isoformat()
+        return value.astimezone(UTC).isoformat()
 
     def _validate_stream(self, stream: str) -> None:
         if stream not in self.CADENCE_SECONDS:

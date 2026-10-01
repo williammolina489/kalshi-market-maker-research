@@ -51,6 +51,7 @@ class AppendOnlyStore:
         endpoint: str = "",
         params: dict[str, Any] | None = None,
         error: str | None = None,
+        update_manifest: bool = True,
     ) -> str:
         received = received_at or datetime.now(UTC)
         row: dict[str, Any] = {
@@ -69,10 +70,13 @@ class AppendOnlyStore:
         row["content_sha256"] = content_hash
         with gzip.open(self.segment, "at", encoding="utf-8") as handle:
             handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
-        self._write_manifest()
+        if update_manifest:
+            self.sync_manifest()
         return content_hash
 
-    def _write_manifest(self) -> None:
+    def sync_manifest(self) -> None:
+        if not self.segment.exists():
+            return
         digest = hashlib.sha256(self.segment.read_bytes()).hexdigest()
         entries: list[dict[str, str]] = []
         if self.manifest.exists():

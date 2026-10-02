@@ -1,0 +1,27 @@
+name: E001 smoke live preflight
+
+on:
+  pull_request:
+    paths:
+      - src/kalshi_mm/**
+      - .github/workflows/e001-24h-smoke.yml
+      - .github/workflows/e001-smoke-preflight.yml
+      - research/E001_SMOKE_AUTHORIZATION.json
+      - research/E001_SMOKE_PROTOCOL.md
+      - PROJECT_STATE.md
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - name: Verify live unauthenticated read-only contracts
+        run: python -m kalshi_mm.smoke_preflight

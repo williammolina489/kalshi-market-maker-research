@@ -51,6 +51,7 @@ class AppendOnlyStore:
         endpoint: str = "",
         params: dict[str, Any] | None = None,
         error: str | None = None,
+        update_manifest: bool = True,
     ) -> str:
         received = received_at or datetime.now(UTC)
         row: dict[str, Any] = {
@@ -69,14 +70,27 @@ class AppendOnlyStore:
         row["content_sha256"] = content_hash
         with gzip.open(self.segment, "at", encoding="utf-8") as handle:
             handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
-        self._write_manifest()
+        if update_manifest:
+            self.sync_manifest()
         return content_hash
 
-    def _write_manifest(self) -> None:
+    def sync_manifest(self) -> None:
+        if not self.segment.exists():
+            return
         digest = hashlib.sha256(self.segment.read_bytes()).hexdigest()
+        entries: list[dict[str, str]] = []
+        if self.manifest.exists():
+            try:
+                current = json.loads(self.manifest.read_text())
+                entries = list(current.get("segments", []))
+            except (OSError, json.JSONDecodeError, TypeError):
+                entries = []
+        replacement = {"path": self.segment.name, "sha256": digest}
+        entries = [entry for entry in entries if entry.get("path") != self.segment.name]
+        entries.append(replacement)
         manifest = {
             "schema_version": COLLECTOR_SCHEMA_VERSION,
-            "segments": [{"path": self.segment.name, "sha256": digest}],
+            "segments": entries,
         }
         self.manifest.write_text(json.dumps(manifest, sort_keys=True, indent=2) + "\n")
 

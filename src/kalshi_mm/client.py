@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -40,7 +40,8 @@ class ReadOnlyKalshiClient:
     def _get(self, path: str, params: Mapping[str, object] | None = None) -> JsonDict:
         if not path.startswith("/") or ".." in path:
             raise ValueError("invalid API path")
-        query = urlencode({k: v for k, v in (params or {}).items() if v is not None})
+        filtered = {key: value for key, value in (params or {}).items() if value is not None}
+        query = urlencode(filtered, doseq=True)
         url = f"{self._base_url}{path}"
         if query:
             url = f"{url}?{query}"
@@ -71,10 +72,16 @@ class ReadOnlyKalshiClient:
             raise ValueError("depth must be between 0 and 100")
         return self._get(f"/markets/{ticker}/orderbook", {"depth": depth})
 
+    def get_orderbooks(self, tickers: Sequence[str]) -> JsonDict:
+        values = list(tickers)
+        if not values or len(values) > 100:
+            raise ValueError("tickers must contain between 1 and 100 markets")
+        return self._get("/markets/orderbooks", {"tickers": values})
+
     def get_trades(
         self,
         *,
-        ticker: str,
+        ticker: str | None = None,
         limit: int = 1000,
         cursor: str | None = None,
         min_ts: int | None = None,

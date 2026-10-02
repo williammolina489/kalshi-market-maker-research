@@ -14,6 +14,9 @@ class RestartState:
     trade_cursor: str | None = None
     trade_watermark: str | None = None
     last_received: dict[str, str] = field(default_factory=dict)
+    trade_cursors: dict[str, str | None] = field(default_factory=dict)
+    trade_watermarks: dict[str, str] = field(default_factory=dict)
+    seen_trade_ids: dict[str, list[str]] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Path) -> RestartState:
@@ -25,6 +28,12 @@ class RestartState:
             trade_cursor=payload.get("trade_cursor"),
             trade_watermark=payload.get("trade_watermark"),
             last_received=dict(payload.get("last_received", {})),
+            trade_cursors=dict(payload.get("trade_cursors", {})),
+            trade_watermarks=dict(payload.get("trade_watermarks", {})),
+            seen_trade_ids={
+                str(ticker): list(values)
+                for ticker, values in payload.get("seen_trade_ids", {}).items()
+            },
         )
 
     def save(self, path: Path) -> None:
@@ -36,6 +45,9 @@ class RestartState:
                     "trade_cursor": self.trade_cursor,
                     "trade_watermark": self.trade_watermark,
                     "last_received": self.last_received,
+                    "trade_cursors": self.trade_cursors,
+                    "trade_watermarks": self.trade_watermarks,
+                    "seen_trade_ids": self.seen_trade_ids,
                 },
                 sort_keys=True,
                 indent=2,
@@ -85,10 +97,24 @@ class CadenceScheduler:
         )
         self.state.next_due[stream] = next_due.isoformat()
 
-    def mark_trade_page(self, *, cursor: str | None, watermark: str | None) -> None:
-        self.state.trade_cursor = cursor
+    def mark_trade_page(
+        self,
+        *,
+        cursor: str | None,
+        watermark: str | None,
+        ticker: str | None = None,
+        seen_trade_ids: set[str] | None = None,
+    ) -> None:
+        if ticker is None:
+            self.state.trade_cursor = cursor
+            if watermark is not None:
+                self.state.trade_watermark = watermark
+            return
+        self.state.trade_cursors[ticker] = cursor
         if watermark is not None:
-            self.state.trade_watermark = watermark
+            self.state.trade_watermarks[ticker] = watermark
+        if seen_trade_ids is not None:
+            self.state.seen_trade_ids[ticker] = sorted(seen_trade_ids)
 
     @staticmethod
     def _utc_iso(value: datetime) -> str:

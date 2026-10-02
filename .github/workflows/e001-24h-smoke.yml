@@ -1,0 +1,214 @@
+name: E001 24h integrity smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - research/E001_SMOKE_AUTHORIZATION.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e001-24h-integrity-smoke
+  cancel-in-progress: false
+
+jobs:
+  chunk1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - name: Run chunk 1
+        run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 1 --max-minutes 330
+      - name: Upload chunk 1 raw data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-smoke-raw-1
+          path: smoke-data/observations-chunk-1.jsonl.gz
+          retention-days: 14
+      - name: Upload chunk 1 state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-smoke-state-1
+          path: |
+            smoke-data/restart.json
+            smoke-data/smoke_runtime.json
+            smoke-data/manifest.json
+            smoke-data/chunk-summary-1.json
+          retention-days: 14
+
+  chunk2:
+    needs: chunk1
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          name: e001-smoke-state-1
+          path: smoke-data
+      - name: Run chunk 2
+        run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 2 --max-minutes 330
+      - name: Upload chunk 2 raw data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-smoke-raw-2
+          path: smoke-data/observations-chunk-2.jsonl.gz
+          retention-days: 14
+      - name: Upload chunk 2 state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-smoke-state-2
+          path: |
+            smoke-data/restart.json
+            smoke-data/smoke_runtime.json
+            smoke-data/manifest.json
+            smoke-data/chunk-summary-2.json
+          retention-days: 14
+
+  chunk3:
+    needs: chunk2
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          name: e001-smoke-state-2
+          path: smoke-data
+      - name: Run chunk 3
+        run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 3 --max-minutes 330
+      - name: Upload chunk 3 raw data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-smoke-raw-3
+          path: smoke-data/observations-chunk-3.jsonl.gz
+          retention-days: 14
+      - name: Upload chunk 3 state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-smoke-state-3
+          path: |
+            smoke-data/restart.json
+            smoke-data/smoke_runtime.json
+            smoke-data/manifest.json
+            smoke-data/chunk-summary-3.json
+          retention-days: 14
+
+  chunk4:
+    needs: chunk3
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          name: e001-smoke-state-3
+          path: smoke-data
+      - name: Run chunk 4
+        run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 4 --max-minutes 330
+      - name: Upload chunk 4 raw data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-smoke-raw-4
+          path: smoke-data/observations-chunk-4.jsonl.gz
+          retention-days: 14
+      - name: Upload chunk 4 state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-smoke-state-4
+          path: |
+            smoke-data/restart.json
+            smoke-data/smoke_runtime.json
+            smoke-data/manifest.json
+            smoke-data/chunk-summary-4.json
+          retention-days: 14
+
+  chunk5:
+    needs: chunk4
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          name: e001-smoke-state-4
+          path: smoke-data
+      - name: Run chunk 5
+        run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 5 --max-minutes 330
+      - name: Upload chunk 5 raw data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-smoke-raw-5
+          path: smoke-data/observations-chunk-5.jsonl.gz
+          retention-days: 14
+      - name: Upload chunk 5 state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-smoke-state-5
+          path: |
+            smoke-data/restart.json
+            smoke-data/smoke_runtime.json
+            smoke-data/manifest.json
+            smoke-data/chunk-summary-5.json
+          retention-days: 14
+
+  integrity-review:
+    needs: chunk5
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: e001-smoke-raw-*
+          path: smoke-final
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: e001-smoke-state-5
+          path: smoke-final
+      - name: Verify immutable replay and write integrity-only review
+        run: python -m kalshi_mm.smoke_review --root smoke-final
+      - name: Upload integrity review
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-smoke-integrity-review
+          path: smoke-final/smoke-review.json
+          retention-days: 30

@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "experiment": "E001",
+  "authorization": "24h_non_performance_integrity_smoke_only",
+  "authorized_by": "project_owner",
+  "authorized_at_utc": "2026-10-01T23:40:00Z",
+  "collector_base_sha": "0daa353d40bf4a3cd69eb498f89300059f4f68ea",
+  "launch": "on_merge_to_main_of_this_authorization_marker",
+  "e001_30_day_window_authorized": false,
+  "performance_view_authorized": false,
+  "live_trading_authorized": false
+}

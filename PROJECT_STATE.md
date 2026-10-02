@@ -4,9 +4,11 @@ Last updated: 2026-10-01
 
 ## Status
 
-FOUNDATION COMPLETE / COLLECTOR REBUILT / E001 PREREGISTERED / PERFORMANCE UNVIEWED / NOT RUNNING
+FOUNDATION COMPLETE / COLLECTOR REBUILT / 24H SMOKE AUTHORIZED / E001 PREREGISTERED / PERFORMANCE UNVIEWED / NOT RUNNING
 
-The clean replacement collector is labeled **REBUILT FROM CANONICAL E001 SPECIFICATION**. The exact prior implementation was lost; this is not a recovery claim. Current Kalshi runtime evidence and the frozen preregistration remain authoritative.
+The clean replacement collector is labeled REBUILT FROM CANONICAL E001 SPECIFICATION.
+The exact prior implementation was lost; this is not a recovery claim. Current Kalshi
+runtime evidence and the frozen preregistration remain authoritative.
 
 ## Frozen safety boundary
 
@@ -14,29 +16,42 @@ The clean replacement collector is labeled **REBUILT FROM CANONICAL E001 SPECIFI
 - No real money.
 - No funded execution.
 - No trading credentials in Git.
-- The implemented client exposes public `GET` methods only.
-- E001 may not be evaluated until the separate infrastructure gate passes and its evidence window begins after the preregistration commit.
+- The implemented client exposes public GET methods only.
+- The project owner authorized one non-performance 24-hour infrastructure smoke on
+  2026-10-01.
+- The official 30-calendar-day E001 evidence window is not authorized and remains stopped.
+- E001 economic performance remains unviewed.
 
 ## Initial universe
 
-`KXHIGHNY` — Highest temperature in NYC, a daily recurring Climate and Weather series.
+KXHIGHNY — Highest temperature in NYC, a daily recurring Climate and Weather series.
 
-Selection is structural, not return-based: recurring daily events, objective published settlement source, standardized bucket markets, public metadata/order books/trades, and enough current public activity to justify prospective observation. E001 still requires two-sided depth and spread gates at each hypothetical quote decision.
+Selection is structural, not return-based: recurring daily events, objective published
+settlement source, standardized bucket markets, public metadata/order books/trades, and
+enough current public activity to justify prospective observation. E001 still requires
+two-sided depth and spread gates at each hypothetical quote decision.
+
+## Rebuild and smoke status
+
+- Rebuild PR #1 was reviewed and merged as
+  04ef07ffb2106e6b96807de86727665185e72e15; post-merge CI passed.
+- Status PR #2 recorded the separate smoke authorization gate.
+- The owner has now authorized only the 24-hour non-performance integrity smoke.
+- The smoke runtime uses bounded chunks, immutable compressed JSONL segments, cumulative
+  SHA-256 manifests, restart state, explicit cadence gaps, and performance-blinded review.
+- Merging the smoke-runtime authorization change to main is the one-shot launch trigger.
+- No 30-day E001 evidence collection or performance evaluation is authorized.
 
 ## Current blockers / unresolved items
 
-1. Kalshi's public Trade API does not expose historical full order-book depth; E001 therefore requires prospective capture.
-2. WebSocket sessions require authentication even for public market-data channels. E001 does not require WebSockets initially: the collector uses unauthenticated public REST polling. If WebSockets are later used, credentials must be least-privilege and remain outside Git.
-3. No single universal numeric position limit was found in the public market/series API schema. Limits may be product/member specific; designated market makers can receive adjusted position limits. Before any future live-execution proposal, contract-specific and account-specific limits must be re-verified.
-4. Liquidity incentives are temporary and mutable. Simulated reward estimates are secondary only and cannot make E001 pass.
-
-## Rebuild status
-
-- Immutable compressed JSONL storage, manifests, deterministic replay, restart state, cadence definitions, conservative queue/inventory simulation, and performance-blinded smoke reporting are implemented.
-- Rebuild PR #1 was reviewed and merged as `04ef07ffb2106e6b96807de86727665185e72e15`; post-merge CI passed.
-- Manual-only smoke tooling exists but has not been run. No 24-hour smoke or 30-day E001 window has started.
-- The first-party orderbook authentication rendering versus unauthenticated Stage-0 runtime behavior is documented in `research/API_CONTRACT_REVALIDATION.md`.
+1. The smoke must complete its full wall-clock interval and immutable replay.
+2. Any unresolved cursor gap, corrupted segment, missing required metadata, or cadence
+   integrity failure stops/rejects the smoke evidence; no favorable backfill is allowed.
+3. Only after smoke integrity review may a separate decision be made about the official
+   30-day E001 window.
 
 ## Exact next step
 
-The rebuild PR was reviewed and merged on 2026-10-01. The next gate is an explicitly authorized non-performance 24-hour integrity smoke test. The smoke has not started. Only after integrity review should the 30-calendar-day E001 evidence window be started. Do not compute E001 P/L during the smoke test.
+Validate and merge the authorized smoke-runtime change. The authorization marker then
+starts the one-shot 24-hour non-performance infrastructure smoke. Do not calculate E001
+economic performance and do not start the official 30-day evidence window.

@@ -14,7 +14,7 @@ Complete: rebuilt from the canonical specification and merged after human review
 
 ## Phase 3 — E001 integrity smoke test
 
-Next gate; not authorized or run. After explicit authorization, run the non-performance 24-hour integrity smoke and verify timestamp discipline, pagination continuity, market lifecycle handling, quote-window coverage, and provenance. Fix collector defects before the preregistered evidence window.
+RUNNING after explicit authorization. GitHub Actions run `36944108882` is executing the non-performance 24-hour integrity smoke. Verify timestamp discipline, pagination continuity, market lifecycle handling, quote-window coverage, immutable replay, and provenance before any separate decision about the preregistered evidence window.
 
 ## Phase 4 — E001 prospective evidence
 

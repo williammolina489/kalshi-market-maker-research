@@ -348,6 +348,34 @@ def _collect_incentives(
         cursor = next_cursor
 
 
+def _submit_fast_polls(
+    executor: ThreadPoolExecutor,
+    client: ReadOnlyKalshiClient,
+    store: AppendOnlyStore,
+    runtime: SmokeRuntimeState,
+    scheduler: CadenceScheduler,
+    now: datetime,
+):
+    """Start the two independent 1-Hz read-only REST polls concurrently.
+
+    Only the main loop marks cadence completion after both futures finish.
+    Missed due slots are still recorded verbatim; no backfill is attempted.
+    """
+    due_books = _latest_due(scheduler, store, "book", now)
+    due_trades = _latest_due(scheduler, store, "trades", now)
+    book_future = (
+        executor.submit(_collect_books, client, store, runtime, due_books)
+        if due_books is not None
+        else None
+    )
+    trade_future = (
+        executor.submit(_collect_trades, client, store, scheduler, due_trades)
+        if due_trades is not None
+        else None
+    )
+    return due_books, due_trades, book_future, trade_future
+
+
 def _initialize_due_times(scheduler: CadenceScheduler, now: datetime) -> None:
     first_due = now.replace(microsecond=0) if in_quote_window(now) else next_quote_start(now)
     for stream in STREAMS:
@@ -410,17 +438,8 @@ def run(root: Path, *, chunk: int, max_minutes: int, collector_commit: str) -> i
 
             # Overlap 1-Hz public GETs with slower metadata/status polls.
             # Futures are joined before cadence state is advanced or saved.
-            due_books = _latest_due(scheduler, store, "book", now)
-            due_trades = _latest_due(scheduler, store, "trades", now)
-            book_future = (
-                executor.submit(_collect_books, client, store, runtime, due_books)
-                if due_books is not None
-                else None
-            )
-            trade_future = (
-                executor.submit(_collect_trades, client, store, scheduler, due_trades)
-                if due_trades is not None
-                else None
+            due_books, due_trades, book_future, trade_future = _submit_fast_polls(
+                executor, client, store, runtime, scheduler, now
             )
 
             due_metadata = _latest_due(scheduler, store, "metadata", now)

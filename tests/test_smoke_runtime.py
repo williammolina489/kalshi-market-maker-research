@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
 
+import pytest
+
 from kalshi_mm.client import ReadOnlyKalshiClient
 from kalshi_mm.collector import TradeContinuity, TradeContinuityError
 from kalshi_mm.scheduler import CadenceScheduler, RestartState
@@ -272,13 +274,13 @@ def test_scoped_continuity_ignores_unrelated_ids_but_preserves_pagination() -> N
     accepted = continuity.accept_page(duplicate, requested_cursor="next")
     assert [item["trade_id"] for item in accepted] == ["target-2"]
     assert continuity.seen_trade_ids == {"target-1", "target-2"}
-    with __import__("pytest").raises(TradeContinuityError, match="cursor lineage"):
+    with pytest.raises(TradeContinuityError, match="cursor lineage"):
         continuity.accept_page(page1, requested_cursor="wrong")
 
 
 def test_scoped_continuity_fails_closed_on_trade_without_ticker() -> None:
     continuity = TradeContinuity(ticker_prefix="KXHIGHNY-")
-    with __import__("pytest").raises(TradeContinuityError, match="ticker"):
+    with pytest.raises(TradeContinuityError, match="ticker"):
         continuity.accept_page(
             {"trades": [{"trade_id": "cannot-identify"}], "cursor": None},
             requested_cursor=None,

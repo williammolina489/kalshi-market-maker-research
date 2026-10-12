@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from datetime import time as wall_time
@@ -197,7 +198,9 @@ def _collect_books(
     runtime: SmokeRuntimeState,
     scheduled_at: datetime,
 ) -> None:
-    if not runtime.active_markets:
+    # Snapshot metadata before a parallel discovery poll can change it.
+    active_markets = list(runtime.active_markets)
+    if not active_markets:
         store.append(
             source="orderbooks_batch",
             payload={"orderbooks": []},
@@ -210,14 +213,14 @@ def _collect_books(
         )
         return
     requested = datetime.now(UTC)
-    payload = client.get_orderbooks(runtime.active_markets)
+    payload = client.get_orderbooks(active_markets)
     received = datetime.now(UTC)
     returned = {
         row.get("ticker")
         for row in payload.get("orderbooks", [])
         if isinstance(row, dict)
     }
-    missing = sorted(set(runtime.active_markets) - returned)
+    missing = sorted(set(active_markets) - returned)
     store.append(
         source="orderbooks_batch",
         payload=payload,
@@ -225,7 +228,7 @@ def _collect_books(
         requested_at=requested,
         received_at=received,
         endpoint="/markets/orderbooks",
-        params={"tickers": runtime.active_markets},
+        params={"tickers": active_markets},
         error=f"missing_orderbooks:{','.join(missing)}" if missing else None,
         update_manifest=False,
     )
@@ -390,6 +393,7 @@ def run(root: Path, *, chunk: int, max_minutes: int, collector_commit: str) -> i
     last_manifest_sync = now
     last_state_save = now
     fatal_error: str | None = None
+    executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="kalshi-public-poll")
 
     try:
         while True:
@@ -403,6 +407,21 @@ def run(root: Path, *, chunk: int, max_minutes: int, collector_commit: str) -> i
                 sleep_for = min(5.0, max(0.1, (chunk_end - now).total_seconds()))
                 time.sleep(sleep_for)
                 continue
+
+            # Overlap 1-Hz public GETs with slower metadata/status polls.
+            # Futures are joined before cadence state is advanced or saved.
+            due_books = _latest_due(scheduler, store, "book", now)
+            due_trades = _latest_due(scheduler, store, "trades", now)
+            book_future = (
+                executor.submit(_collect_books, client, store, runtime, due_books)
+                if due_books is not None
+                else None
+            )
+            trade_future = (
+                executor.submit(_collect_trades, client, store, scheduler, due_trades)
+                if due_trades is not None
+                else None
+            )
 
             due_metadata = _latest_due(scheduler, store, "metadata", now)
             if due_metadata is not None:
@@ -460,39 +479,32 @@ def run(root: Path, *, chunk: int, max_minutes: int, collector_commit: str) -> i
                     received_at=now,
                 )
 
-            due_books = _latest_due(scheduler, store, "book", now)
-            if due_books is not None:
+            for stream, due, future in (
+                ("book", due_books, book_future),
+                ("trades", due_trades, trade_future),
+            ):
+                if due is None or future is None:
+                    continue
                 try:
-                    _collect_books(client, store, runtime, due_books)
-                except Exception as exc:
-                    _append_error(
-                        store,
-                        source="orderbooks_batch",
-                        endpoint="/markets/orderbooks",
-                        params={"tickers": runtime.active_markets},
-                        scheduled_at=due_books,
-                        requested_at=now,
-                        exc=exc,
-                    )
-                scheduler.mark_received("book", scheduled_at=due_books, received_at=now)
-
-            due_trades = _latest_due(scheduler, store, "trades", now)
-            if due_trades is not None:
-                try:
-                    _collect_trades(client, store, scheduler, due_trades)
+                    future.result()
                 except TradeContinuityError:
+                    # Missing trade lineage is never silently skipped.
                     raise
                 except Exception as exc:
                     _append_error(
                         store,
-                        source="trades_global",
-                        endpoint="/markets/trades",
-                        params={"ticker": None},
-                        scheduled_at=due_trades,
+                        source="orderbooks_batch" if stream == "book" else "trades_global",
+                        endpoint="/markets/orderbooks" if stream == "book" else "/markets/trades",
+                        params=(
+                            {"tickers": list(runtime.active_markets)}
+                            if stream == "book"
+                            else {"ticker": None}
+                        ),
+                        scheduled_at=due,
                         requested_at=now,
                         exc=exc,
                     )
-                scheduler.mark_received("trades", scheduled_at=due_trades, received_at=now)
+                scheduler.mark_received(stream, scheduled_at=due, received_at=datetime.now(UTC))
 
             now = datetime.now(UTC)
             if (now - last_state_save).total_seconds() >= 5:
@@ -507,6 +519,8 @@ def run(root: Path, *, chunk: int, max_minutes: int, collector_commit: str) -> i
         fatal_error = f"{type(exc).__name__}: {exc}"
         raise
     finally:
+        # Complete all public GETs before hashing the immutable segment.
+        executor.shutdown(wait=True, cancel_futures=False)
         finished = datetime.now(UTC)
         store.append(
             source="smoke_control",

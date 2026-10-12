@@ -263,6 +263,8 @@ def test_scoped_continuity_ignores_unrelated_ids_but_preserves_pagination() -> N
     assert [item["trade_id"] for item in accepted] == ["target-1"]
     assert continuity.seen_trade_ids == {"target-1"}
     assert continuity.cursor == "next"
+    with pytest.raises(TradeContinuityError, match="cursor lineage"):
+        continuity.accept_page(page1, requested_cursor="wrong")
 
     duplicate = {
         "trades": [
@@ -274,8 +276,6 @@ def test_scoped_continuity_ignores_unrelated_ids_but_preserves_pagination() -> N
     accepted = continuity.accept_page(duplicate, requested_cursor="next")
     assert [item["trade_id"] for item in accepted] == ["target-2"]
     assert continuity.seen_trade_ids == {"target-1", "target-2"}
-    with pytest.raises(TradeContinuityError, match="cursor lineage"):
-        continuity.accept_page(page1, requested_cursor="wrong")
 
 
 def test_scoped_continuity_fails_closed_on_trade_without_ticker() -> None:

@@ -1,58 +1,47 @@
 # Project State
 
-Last updated: 2026-10-01
+Last updated: 2026-10-12
 
 ## Status
 
-FOUNDATION COMPLETE / COLLECTOR REBUILT / 24H SMOKE RUNNING / E001 PREREGISTERED / PERFORMANCE UNVIEWED / 30D NOT RUNNING
+FOUNDATION COMPLETE / COLLECTOR REBUILT AND POLLING HARDENED / FIRST 24H SMOKE COMPLETE — INTEGRITY REVIEW REQUIRED / E001 PREREGISTERED / PERFORMANCE UNVIEWED / 30D NOT RUNNING
 
-The clean replacement collector is labeled REBUILT FROM CANONICAL E001 SPECIFICATION.
-The exact prior implementation was lost; this is not a recovery claim. Current Kalshi
-runtime evidence and the frozen preregistration remain authoritative.
+The clean replacement collector is **REBUILT FROM CANONICAL E001 SPECIFICATION**.
+The exact prior implementation was lost; the rebuild is not an exact recovery.
 
 ## Frozen safety boundary
 
-- No live orders.
-- No real money.
-- No funded execution.
-- No trading credentials in Git.
-- The implemented client exposes public GET methods only.
-- The project owner authorized one non-performance 24-hour infrastructure smoke on
-  2026-10-01.
-- The official 30-calendar-day E001 evidence window is not authorized and remains stopped.
-- E001 economic performance remains unviewed.
+- No live orders, funded execution, or real money.
+- No trading credentials or authenticated order client.
+- Public HTTPS GET observation only.
+- Only the original non-performance 24-hour smoke was authorized on 2026-10-01.
+- The 30-calendar-day E001 evidence period has **not** been authorized or started.
+- E001 economic performance is **unviewed** and must remain so.
 
-## Initial universe
+## Completed infrastructure smoke
 
-KXHIGHNY — Highest temperature in NYC, a daily recurring Climate and Weather series.
+The previously authorized run [36944108882](https://github.com/williammolina489/kalshi-market-maker-research/actions/runs/36944108882) completed on 2026-10-03; all five chunks and its immutable-replay/integrity-review job succeeded operationally.
 
-Selection is structural, not return-based: recurring daily events, objective published
-settlement source, standardized bucket markets, public metadata/order books/trades, and
-enough current public activity to justify prospective observation. E001 still requires
-two-sided depth and spread gates at each hypothetical quote decision.
+The performance-blinded `e001-smoke-integrity-review` artifact reports:
 
-## Rebuild and smoke status
+- `wall_clock_window_complete=true`
+- `integrity_review_status=REVIEW_REQUIRED`
+- **10,698 cadence-gap records** (`cadence_gap_records`); one gap record may represent multiple missed scheduled slots
+- **10,698 error-bearing records** (`records_with_errors`), consisting of those cadence-gap records
+- Immutable segments and review artifact remain preserved. These observations must not be rewritten, selectively excluded or backfilled.
 
-- Rebuild PR #1 was reviewed and merged as
-  04ef07ffb2106e6b96807de86727665185e72e15; post-merge CI passed.
-- Status PR #2 recorded the separate smoke authorization gate.
-- The owner has now authorized only the 24-hour non-performance integrity smoke.
-- The smoke runtime uses bounded chunks, immutable compressed JSONL segments, cumulative
-  SHA-256 manifests, restart state, explicit cadence gaps, and performance-blinded review.
-- Smoke launch PR #3 merged as `6daccf95955c18a2efbb9b78f3d144c3779dedff`.
-- GitHub Actions run `36944108882` started the authorized 24-hour smoke; chunk 1 is running.
-- No 30-day E001 evidence collection or performance evaluation is authorized.
+A successful workflow/replay **does not** establish the frozen 99.5% order-book coverage gate or justify economic evaluation.
 
-## Current blockers / unresolved items
+## Infrastructure remediation
 
-1. The smoke must complete its full wall-clock interval and immutable replay.
-2. Any unresolved cursor gap, corrupted segment, missing required metadata, or cadence
-   integrity failure stops/rejects the smoke evidence; no favorable backfill is allowed.
-3. Only after smoke integrity review may a separate decision be made about the official
-   30-day E001 window.
+On 2026-10-12 PR #5 updated the future public read-only collector so 1-Hz order-book and trade GET calls overlap, including overlap with slower metadata/status requests. Gzip append writes are serialized; batch market identity is snapshotted; concurrency and replay regression tests passed. The frozen polling cadence, E001 methodology and prior evidence are unchanged.
 
-## Exact next step
+This is a preventative code improvement, **not** proof of adequate future capture: sustained independent measurement is still required.
 
-Continue only the already-started 24-hour non-performance infrastructure smoke through
-its bounded chunks and integrity-only final review. Do not calculate E001 economic
-performance and do not start the official 30-day evidence window.
+## Current blocker and exact next step
+
+1. Complete integrity-only interpretation of the existing smoke, including per-stream missed scheduled slot totals and their timing. Treat the recorded gaps as genuine missing observations rather than silently fixing the data.
+2. If the owner explicitly authorizes a **new, separately scoped non-performance infrastructure verification run**, freeze its dates, identity, storage retention and pass/fail plan first; do not reuse the October 1 authorization marker or the original run.
+3. Only after an adequately verified smoke and a further explicit E001 start decision may the official untouched 30-day evidence window begin.
+
+Until then E001 stays PREREGISTERED / NOT RUNNING. Do not calculate strategy P/L, fill economics or promotion metrics.

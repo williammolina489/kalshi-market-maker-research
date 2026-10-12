@@ -36,7 +36,11 @@ A successful workflow/replay **does not** establish the frozen 99.5% order-book 
 
 On 2026-10-12 PR #5 updated the future public read-only collector so 1-Hz order-book and trade GET calls overlap, including overlap with slower metadata/status requests. Gzip append writes are serialized; batch market identity is snapshotted; concurrency and replay regression tests passed. The frozen polling cadence, E001 methodology and prior evidence are unchanged.
 
-This is a preventative code improvement, **not** proof of adequate future capture: sustained independent measurement is still required.
+On 2026-10-12 PR #6 added per-stream **missed scheduled slot** accounting, distinguishing actual missing samples from their aggregated gap-record count.
+
+On 2026-10-12 PR #7 fixed another documented overhead problem: inspection of the original state-5 artifact showed a 178,201,225-byte `restart.json` with 3,873,924 exchange-wide persisted trade IDs, rewritten by the runner every five seconds. The raw global trade payloads and cursor checks are still fully preserved, but only `KXHIGHNY-` trade IDs now enter the dedup checkpoint, while the watermark continues tracking all returned global trade timestamps. See `docs/SMOKE_RESTART_STATE_INCIDENT_2026-10-12.md`. All PR #7 CI and public read-only preflight checks passed.
+
+These are preventive code improvements, **not** proof of adequate future capture. The original 10,698 gap records remain valid historical evidence, and a separately authorized, bounded non-performance verification run is still required before claiming a passed smoke.
 
 ## Current blocker and exact next step
 

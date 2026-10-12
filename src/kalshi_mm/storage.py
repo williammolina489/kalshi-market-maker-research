@@ -8,6 +8,7 @@ import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from .config import COLLECTOR_SCHEMA_VERSION
@@ -39,6 +40,7 @@ class AppendOnlyStore:
         self.segment = self.root / segment_name
         self.manifest = self.root / "manifest.json"
         self.collector_commit = collector_commit
+        self._append_lock = Lock()
 
     def append(
         self,
@@ -68,8 +70,10 @@ class AppendOnlyStore:
         }
         content_hash = hashlib.sha256(_canonical(row)).hexdigest()
         row["content_sha256"] = content_hash
-        with gzip.open(self.segment, "at", encoding="utf-8") as handle:
-            handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
+        # Parallel public polls must never interleave compressed JSONL writes.
+        with self._append_lock:
+            with gzip.open(self.segment, "at", encoding="utf-8") as handle:
+                handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
         if update_manifest:
             self.sync_manifest()
         return content_hash

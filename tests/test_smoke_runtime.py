@@ -171,3 +171,72 @@ def test_concurrent_append_does_not_corrupt_gzip_manifest(tmp_path: Path) -> Non
     assert len(replay) == 60
     assert {row["source"] for row in replay} == {"book", "trades"}
     assert all(len(row["content_sha256"]) == 64 for row in replay)
+
+
+def test_review_counts_actual_missing_slots_not_only_gap_records(tmp_path: Path) -> None:
+    now = datetime.now(UTC)
+    start = now - timedelta(hours=25)
+    (tmp_path / "smoke_runtime.json").write_text(
+        json.dumps({
+            "smoke_id": "gap-attribution-test",
+            "started_at_utc": start.isoformat(),
+            "deadline_utc": (now - timedelta(hours=1)).isoformat(),
+        })
+    )
+    store = AppendOnlyStore(tmp_path)
+    store.append(
+        source="cadence_gap",
+        payload={
+            "stream": "book",
+            "missing_count": 4,
+            "first_missing_utc": start.isoformat(),
+            "last_missing_utc": (start + timedelta(seconds=3)).isoformat(),
+        },
+        scheduled_at=start,
+        received_at=start + timedelta(seconds=4),
+        error="missed_scheduled_slots",
+        update_manifest=False,
+    )
+    store.append(
+        source="orderbooks_batch",
+        payload={"orderbooks": [{"ticker": "A"}]},
+        scheduled_at=start + timedelta(seconds=4),
+        received_at=start + timedelta(seconds=5),
+        update_manifest=False,
+    )
+    # Multiple trade pages at the same scheduled time are only one poll slot.
+    for i in range(2):
+        store.append(
+            source="trades_global",
+            payload={"trades": [{"trade_id": str(i)}]},
+            scheduled_at=start + timedelta(seconds=4),
+            received_at=start + timedelta(seconds=5 + i),
+            update_manifest=False,
+        )
+    store.sync_manifest()
+    summary = review(tmp_path)
+    assert summary["cadence_gap_records"] == 1
+    assert summary["missing_scheduled_slots_by_stream"] == {"book": 4}
+    assert summary["attempted_scheduled_slots_by_stream"]["trades"] == 1
+    assert summary["successful_scheduled_slots_by_stream"]["book"] == 1
+    assert summary["performance_blinded"] is True
+
+
+def test_review_rejects_malformed_gap_attribution(tmp_path: Path) -> None:
+    now = datetime.now(UTC)
+    (tmp_path / "smoke_runtime.json").write_text(
+        json.dumps({
+            "smoke_id": "bad-gap-test",
+            "started_at_utc": (now - timedelta(hours=25)).isoformat(),
+            "deadline_utc": (now - timedelta(hours=1)).isoformat(),
+        })
+    )
+    store = AppendOnlyStore(tmp_path)
+    store.append(
+        source="cadence_gap",
+        payload={"stream": "book", "missing_count": -1},
+        received_at=now,
+    )
+    import pytest
+    with pytest.raises(ValueError, match="invalid cadence-gap"):
+        review(tmp_path)

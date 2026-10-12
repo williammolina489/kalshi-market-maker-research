@@ -7,9 +7,15 @@ from pathlib import Path
 from threading import Barrier
 
 from kalshi_mm.client import ReadOnlyKalshiClient
+from kalshi_mm.collector import TradeContinuity, TradeContinuityError
 from kalshi_mm.scheduler import CadenceScheduler, RestartState
 from kalshi_mm.smoke_review import review
-from kalshi_mm.smoke_runner import SmokeRuntimeState, _submit_fast_polls, next_quote_start
+from kalshi_mm.smoke_runner import (
+    SmokeRuntimeState,
+    _collect_trades,
+    _submit_fast_polls,
+    next_quote_start,
+)
 from kalshi_mm.storage import AppendOnlyStore
 
 
@@ -240,3 +246,74 @@ def test_review_rejects_malformed_gap_attribution(tmp_path: Path) -> None:
     import pytest
     with pytest.raises(ValueError, match="invalid cadence-gap"):
         review(tmp_path)
+
+
+def test_scoped_continuity_ignores_unrelated_ids_but_preserves_pagination() -> None:
+    continuity = TradeContinuity(ticker_prefix="KXHIGHNY-")
+    page1 = {
+        "trades": [
+            {"ticker": "KXBTC-OTHER", "trade_id": f"other-{i}"}
+            for i in range(3000)
+        ] + [{"ticker": "KXHIGHNY-T", "trade_id": "target-1"}],
+        "cursor": "next",
+    }
+    accepted = continuity.accept_page(page1, requested_cursor=None)
+    assert [item["trade_id"] for item in accepted] == ["target-1"]
+    assert continuity.seen_trade_ids == {"target-1"}
+    assert continuity.cursor == "next"
+
+    duplicate = {
+        "trades": [
+            {"ticker": "KXHIGHNY-T", "trade_id": "target-1"},
+            {"ticker": "KXHIGHNY-T", "trade_id": "target-2"},
+        ],
+        "cursor": None,
+    }
+    accepted = continuity.accept_page(duplicate, requested_cursor="next")
+    assert [item["trade_id"] for item in accepted] == ["target-2"]
+    assert continuity.seen_trade_ids == {"target-1", "target-2"}
+    with __import__("pytest").raises(TradeContinuityError, match="cursor lineage"):
+        continuity.accept_page(page1, requested_cursor="wrong")
+
+
+def test_scoped_continuity_fails_closed_on_trade_without_ticker() -> None:
+    continuity = TradeContinuity(ticker_prefix="KXHIGHNY-")
+    with __import__("pytest").raises(TradeContinuityError, match="ticker"):
+        continuity.accept_page(
+            {"trades": [{"trade_id": "cannot-identify"}], "cursor": None},
+            requested_cursor=None,
+        )
+
+
+def test_global_watermark_advances_without_relevant_trades(tmp_path: Path) -> None:
+    class MockGlobalClient:
+        def __init__(self) -> None:
+            self.requests = []
+
+        def get_trades(self, *, ticker, limit, cursor, min_ts):
+            self.requests.append({"ticker": ticker, "cursor": cursor, "min_ts": min_ts})
+            return {
+                "trades": [
+                    {
+                        "ticker": "KXBTC-OTHER",
+                        "trade_id": "other",
+                        "created_time": "2026-10-01T14:00:03Z",
+                    }
+                ],
+                "cursor": None,
+            }
+
+    now = datetime(2026, 10, 1, 14, 0, 5, tzinfo=UTC)
+    scheduler = CadenceScheduler()
+    store = AppendOnlyStore(tmp_path)
+    client = MockGlobalClient()
+    _collect_trades(client, store, scheduler, now)
+    assert scheduler.state.trade_watermark == "2026-10-01T14:00:03+00:00"
+    assert scheduler.state.seen_trade_ids["__global__"] == []
+    _collect_trades(client, store, scheduler, now + timedelta(seconds=1))
+    assert client.requests[1]["min_ts"] == int(
+        datetime(2026, 10, 1, 14, 0, 3, tzinfo=UTC).timestamp()
+    ) - 1
+    assert scheduler.state.seen_trade_ids["__global__"] == []
+    store.sync_manifest()
+    assert len(list(store.replay())) == 2

@@ -20,6 +20,7 @@ class TradeContinuityError(ValueError):
 class TradeContinuity:
     cursor: str | None = None
     seen_trade_ids: set[str] = field(default_factory=set)
+    ticker_prefix: str | None = None
 
     def accept_page(
         self,
@@ -39,6 +40,15 @@ class TradeContinuity:
             trade_id = row.get("trade_id")
             if not isinstance(trade_id, str) or not trade_id:
                 raise TradeContinuityError("trade without identity")
+            # A global exchange trade feed is much larger than the frozen
+            # research universe. Preserve raw pages/cursor validation while
+            # persisting dedup IDs only for the eligible series, when scoped.
+            if self.ticker_prefix is not None:
+                ticker = row.get("ticker")
+                if not isinstance(ticker, str) or not ticker:
+                    raise TradeContinuityError("trade without market ticker")
+                if not ticker.startswith(self.ticker_prefix):
+                    continue
             if trade_id in self.seen_trade_ids:
                 continue
             self.seen_trade_ids.add(trade_id)

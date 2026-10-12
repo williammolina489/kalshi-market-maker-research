@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Barrier
 
 from kalshi_mm.client import ReadOnlyKalshiClient
-from kalshi_mm.scheduler import RestartState
+from kalshi_mm.scheduler import CadenceScheduler, RestartState
 from kalshi_mm.smoke_review import review
-from kalshi_mm.smoke_runner import SmokeRuntimeState, next_quote_start
+from kalshi_mm.smoke_runner import SmokeRuntimeState, _submit_fast_polls, next_quote_start
 from kalshi_mm.storage import AppendOnlyStore
 
 
@@ -100,3 +102,72 @@ def test_smoke_review_remains_performance_blinded(tmp_path: Path) -> None:
     assert "pnl" not in rendered
     assert "sharpe" not in rendered
     assert "drawdown" not in rendered
+
+
+def test_parallel_fast_polls_overlap_and_append_replayable_records(tmp_path: Path) -> None:
+    both_started = Barrier(2, timeout=3)
+
+    class PublicReadOnlyClient:
+        def get_orderbooks(self, tickers):
+            assert tickers == ["KXHIGHNY-A"]
+            both_started.wait()
+            return {"orderbooks": [{"ticker": "KXHIGHNY-A"}]}
+
+        def get_trades(self, **kwargs):
+            assert kwargs["ticker"] is None
+            both_started.wait()
+            return {"trades": [], "cursor": None}
+
+    now = datetime(2026, 10, 1, 14, 0, tzinfo=UTC)
+    runtime = SmokeRuntimeState(
+        smoke_id="local-replay-test",
+        started_at_utc=now.isoformat(),
+        deadline_utc=(now + timedelta(hours=1)).isoformat(),
+        active_markets=["KXHIGHNY-A"],
+    )
+    scheduler = CadenceScheduler()
+    for stream in ("book", "trades"):
+        scheduler.set_next_due(stream, now)
+    store = AppendOnlyStore(tmp_path)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        book_at, trades_at, book, trades = _submit_fast_polls(
+            executor, PublicReadOnlyClient(), store, runtime, scheduler, now
+        )
+        assert book_at == trades_at == now
+        assert book is not None and trades is not None
+        book.result(timeout=3)
+        trades.result(timeout=3)
+    scheduler.mark_received("book", scheduled_at=book_at, received_at=now)
+    scheduler.mark_received("trades", scheduled_at=trades_at, received_at=now)
+    store.sync_manifest()
+    replay = list(store.replay())
+    assert sorted(row["source"] for row in replay) == [
+        "orderbooks_batch",
+        "trades_global",
+    ]
+    assert scheduler.state.next_due["book"] == (now + timedelta(seconds=1)).isoformat()
+    assert scheduler.state.next_due["trades"] == (now + timedelta(seconds=1)).isoformat()
+
+
+def test_concurrent_append_does_not_corrupt_gzip_manifest(tmp_path: Path) -> None:
+    store = AppendOnlyStore(tmp_path)
+
+    def write_worker(source: str) -> None:
+        for i in range(30):
+            store.append(
+                source=source,
+                payload={"i": i},
+                received_at=datetime(2026, 10, 1, 14, 0, tzinfo=UTC)
+                + timedelta(seconds=i),
+                update_manifest=False,
+            )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        jobs = [executor.submit(write_worker, source) for source in ("book", "trades")]
+        for job in jobs:
+            job.result(timeout=8)
+    store.sync_manifest()
+    replay = list(store.replay())
+    assert len(replay) == 60
+    assert {row["source"] for row in replay} == {"book", "trades"}
+    assert all(len(row["content_sha256"]) == 64 for row in replay)

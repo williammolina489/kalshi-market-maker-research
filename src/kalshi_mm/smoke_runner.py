@@ -257,6 +257,7 @@ def _collect_trades(
     continuity = TradeContinuity(
         cursor=scheduler.state.trade_cursor,
         seen_trade_ids=seen,
+        ticker_prefix=f"{INITIAL_SERIES_TICKER}-",
     )
     watermark = _parse_created_time(scheduler.state.trade_watermark)
     min_ts = int(watermark.timestamp()) - 1 if watermark else int(scheduled_at.timestamp()) - 2
@@ -272,7 +273,7 @@ def _collect_trades(
             min_ts=min_ts,
         )
         received = datetime.now(UTC)
-        rows = continuity.accept_page(payload, requested_cursor=requested_cursor)
+        continuity.accept_page(payload, requested_cursor=requested_cursor)
         store.append(
             source="trades_global",
             payload=payload,
@@ -289,7 +290,11 @@ def _collect_trades(
             },
             update_manifest=False,
         )
-        for row in rows:
+        # The global request's coverage watermark must follow *all* pages,
+        # including irrelevant markets. Otherwise, an inactive KXHIGHNY series
+        # repeatedly re-reads the entire exchange history every second.
+        # Trade identity dedup, by contrast, is scoped to KXHIGHNY.
+        for row in payload["trades"]:
             created = _parse_created_time(row.get("created_time"))
             if created is not None and (newest is None or created > newest):
                 newest = created

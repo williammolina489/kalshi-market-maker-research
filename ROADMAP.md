@@ -1,29 +1,22 @@
 # Roadmap
 
-## Phase 0 — Current environment research
-
-Complete 2026-09-19. Re-verify operational rules before every experiment that depends on them.
+## Phase 0 — Environment research
+Completed 2026-09-19. Revalidate current operational API rules before a new authorized experiment.
 
 ## Phase 1 — Foundation
-
-Complete: documentation, package scaffold, read-only public API client, economics primitives, tests, and CI.
+Complete: read-only public client, canonical specification, documentation and CI.
 
 ## Phase 2 — Prospective collector
+Rebuilt from the frozen canonical specification. PR #5 on 2026-10-12 overlapped independent public GET polling and serialized immutable compressed writes; all existing raw observations remain untouched.
 
-Complete: rebuilt from the canonical specification and merged after human review. The collector preserves immutable raw market metadata, full available order-book depth, public trades, exchange status, and incentive definitions separately from derived analytics. Missing book states are never backfilled from future observations.
-
-## Phase 3 — E001 integrity smoke test
-
-RUNNING after explicit authorization. GitHub Actions run `36944108882` is executing the non-performance 24-hour integrity smoke. Verify timestamp discipline, pagination continuity, market lifecycle handling, quote-window coverage, immutable replay, and provenance before any separate decision about the preregistered evidence window.
+## Phase 3 — E001 non-performance infrastructure smoke
+**First 24-hour smoke COMPLETED 2026-10-03; INTEGRITY REVIEW REQUIRED.** Run 36944108882 finished successfully as an Actions workflow but its performance-blinded review counted 10,698 cadence-gap records. Operational completion is not data-integrity PASS. No unapproved repeat or backfill. A new smoke requires separate authorization after prospective infrastructure hardening.
 
 ## Phase 4 — E001 prospective evidence
-
-Run the frozen 30-calendar-day policy in `research/E001_PREREGISTRATION.md`. No parameter sweeps, no post-hoc universe changes, and no peeking for tuning.
+**NOT AUTHORIZED / NOT RUNNING.** Only after a suitably verified smoke and separate owner approval may the frozen 30-calendar-day policy in `research/E001_PREREGISTRATION.md` start. No parameter sweeps, window changes, or performance peeking.
 
 ## Phase 5 — Decision
+Only after a valid, separately authorized E001 evidence run: document PASS or STOP/REJECT without retuning the frozen policy. New policy means a new preregistration.
 
-Record PASS or STOP / REJECT in `EXPERIMENTS.md`. Preserve the failed specification if rejected. Any materially different quoting policy becomes a new preregistered experiment.
-
-## Future architecture gate
-
-A real execution adapter is intentionally absent. It may only be designed after prospective evidence justifies further work and an explicit project decision approves that phase. Real-money execution remains prohibited under the current project charter.
+## Execution
+Order entry is deliberately absent. Real money remains prohibited.

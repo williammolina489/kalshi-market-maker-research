@@ -1,0 +1,247 @@
+# Do not add the V2 authorization marker until actual GitHub account artifact
+# free capacity has been verified. The first job refuses stale confirmations,
+# outside-window launches, any change in frozen code, or unsafe trading flags.
+# The prior E001 marker is not a trigger for this workflow.
+name: E001 verification V2 — separately gated 24h integrity smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - research/E001_VERIFICATION_V2_AUTHORIZATION.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e001-24h-integrity-verification-v2
+  cancel-in-progress: false
+
+jobs:
+  chunk1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - name: Fail-closed new authorization, account storage, and frozen commit gate
+        run: |
+          set -euo pipefail
+          AUTH="research/E001_VERIFICATION_V2_AUTHORIZATION.json"
+          test -s "$AUTH"
+          python -m kalshi_mm.smoke_v2_gate --authorization "$AUTH"
+          BASE_SHA="$(python -c 'import json; print(json.load(open("research/E001_VERIFICATION_V2_AUTHORIZATION.json"))["collector_commit_sha"])')"
+          git cat-file -e "$BASE_SHA^{commit}"
+          git merge-base --is-ancestor "$BASE_SHA" "$GITHUB_SHA"
+          CHANGED="$(git diff --name-only "$BASE_SHA" "$GITHUB_SHA")"
+          test "$CHANGED" = "research/E001_VERIFICATION_V2_AUTHORIZATION.json" || {
+            echo "::error::Collector code changed after frozen verification base; stop."
+            exit 1
+          }
+          echo "V2 ONLY: public GET integrity smoke; never E001 30-day evidence or funded trading."
+      - name: Verify public API readiness after authorization
+        run: python -m kalshi_mm.smoke_preflight
+      - name: Run gated V2 chunk 1 (24h deadline set only after local launch gate)
+        run: |
+          cp research/E001_VERIFICATION_V2_AUTHORIZATION.json /tmp/e001-v2-authorization.json
+          python -m kalshi_mm.smoke_runner --root smoke-data --chunk 1 --max-minutes 330
+          cp /tmp/e001-v2-authorization.json smoke-data/verification-authorization.json
+      - name: Upload chunk 1 raw data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-v2-smoke-raw-1
+          path: smoke-data/observations-chunk-1.jsonl.gz
+          retention-days: 2
+      - name: Upload chunk 1 state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-v2-smoke-state-1
+          path: |
+            smoke-data/restart.json
+            smoke-data/smoke_runtime.json
+            smoke-data/manifest.json
+            smoke-data/chunk-summary-1.json
+            smoke-data/verification-authorization.json
+          retention-days: 2
+
+  chunk2:
+    needs: chunk1
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          name: e001-v2-smoke-state-1
+          path: smoke-data
+      - name: Run chunk 2
+        run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 2 --max-minutes 330
+      - name: Upload chunk 2 raw data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-v2-smoke-raw-2
+          path: smoke-data/observations-chunk-2.jsonl.gz
+          retention-days: 2
+      - name: Upload chunk 2 state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-v2-smoke-state-2
+          path: |
+            smoke-data/restart.json
+            smoke-data/smoke_runtime.json
+            smoke-data/manifest.json
+            smoke-data/chunk-summary-2.json
+            smoke-data/verification-authorization.json
+          retention-days: 2
+
+  chunk3:
+    needs: chunk2
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          name: e001-v2-smoke-state-2
+          path: smoke-data
+      - name: Run chunk 3
+        run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 3 --max-minutes 330
+      - name: Upload chunk 3 raw data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-v2-smoke-raw-3
+          path: smoke-data/observations-chunk-3.jsonl.gz
+          retention-days: 2
+      - name: Upload chunk 3 state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-v2-smoke-state-3
+          path: |
+            smoke-data/restart.json
+            smoke-data/smoke_runtime.json
+            smoke-data/manifest.json
+            smoke-data/chunk-summary-3.json
+            smoke-data/verification-authorization.json
+          retention-days: 2
+
+  chunk4:
+    needs: chunk3
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          name: e001-v2-smoke-state-3
+          path: smoke-data
+      - name: Run chunk 4
+        run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 4 --max-minutes 330
+      - name: Upload chunk 4 raw data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-v2-smoke-raw-4
+          path: smoke-data/observations-chunk-4.jsonl.gz
+          retention-days: 2
+      - name: Upload chunk 4 state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-v2-smoke-state-4
+          path: |
+            smoke-data/restart.json
+            smoke-data/smoke_runtime.json
+            smoke-data/manifest.json
+            smoke-data/chunk-summary-4.json
+            smoke-data/verification-authorization.json
+          retention-days: 2
+
+  chunk5:
+    needs: chunk4
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          name: e001-v2-smoke-state-4
+          path: smoke-data
+      - name: Run chunk 5
+        run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 5 --max-minutes 330
+      - name: Upload chunk 5 raw data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-v2-smoke-raw-5
+          path: smoke-data/observations-chunk-5.jsonl.gz
+          retention-days: 2
+      - name: Upload chunk 5 state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-v2-smoke-state-5
+          path: |
+            smoke-data/restart.json
+            smoke-data/smoke_runtime.json
+            smoke-data/manifest.json
+            smoke-data/chunk-summary-5.json
+            smoke-data/verification-authorization.json
+          retention-days: 2
+
+  integrity-review:
+    needs: chunk5
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: e001-v2-smoke-raw-*
+          path: smoke-final
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: e001-v2-smoke-state-5
+          path: smoke-final
+      - name: Verify immutable replay, isolated authorization, and integrity-only review
+        run: |
+          test -s smoke-final/verification-authorization.json
+          python -m kalshi_mm.smoke_review --root smoke-final
+      - name: Upload integrity review
+        uses: actions/upload-artifact@v4
+        with:
+          name: e001-v2-smoke-integrity-review
+          path: |\n            smoke-final/smoke-review.json\n            smoke-final/verification-authorization.json
+          retention-days: 3

@@ -1,7 +1,7 @@
 # Proposed E001 Infrastructure Smoke Verification V2 — Approval Required
 
 **Draft prepared:** 2026-10-13  
-**Current state:** PROPOSAL ONLY — NOT PREREGISTERED, AUTHORIZED, SCHEDULED, OR RUNNING  
+**Current state:** OWNER APPROVED IN PRINCIPLE 2026-10-13 — LAUNCH BLOCKED PENDING VERIFIED STORAGE; NOT SCHEDULED OR RUNNING  
 **Permitted scope if separately authorized:** public, unauthenticated HTTPS GET observation; integrity only  
 **Explicitly excluded:** orders, credentials, real money, strategy economics, official E001 30-day evidence, market/strategy changes
 
@@ -59,6 +59,21 @@ Only following explicit project-owner approval, create a **new** immutable autho
 ## Separate E001 authorization still required
 
 Even if this *separate* smoke passes, official E001 30-consecutive-calendar-day evidence collection remains **NOT STARTED** and requires a later explicit owner start decision. Economic performance inspection and real-money trading remain prohibited. E002 is not created here.
+
+
+## Owner approval and explicit storage blocker (2026-10-13)
+
+The project owner approved **one additional read-only, 24-hour Kalshi infrastructure smoke**, conditioned on storage checks; no 30-day E001 window or paid capacity was approved.
+
+At inspection on October 13, the prior run still retained **576.10 MB** of GitHub Actions artifacts, including approximately **428.5 MB** of raw source segments. Free GitHub accounts include **500 MB** of shared Actions/Packages artifact storage; GitHub Pro includes **1 GB**. The connected GitHub API does not expose the owner's remaining account-wide free artifact capacity or any billing cap. A near-complete 23,400-slot quote session can generate materially more raw market data than the original ~10,597-book-batch test.
+
+**Do not launch or commit the trigger marker yet.** The new CI-tested workflow `.github/workflows/e001-24h-verification-v2.yml` is installed only on this draft branch; its trigger is a separate **currently absent** `research/E001_VERIFICATION_V2_AUTHORIZATION.json` file, not the spent October 1 smoke marker. A new marker may be created only after GitHub account Billing confirms at least **1.5 GiB additional unallocated artifact storage**, a recent timestamp, and zero paid-capacity authorization. If that capacity is unavailable, keep this experiment stopped and consider a separately approved storage architecture instead of charging the user.
+
+The marker must conform to `research/E001_VERIFICATION_V2_AUTHORIZATION_SCHEMA.json`. Its `collector_commit_sha` must pin the approved V2 implementation **before** the marker is committed to `main`; the launch gate checks that only the authorization file changed between that frozen commit and the launch SHA. A narrow predeclared evening New York launch interval is required so the ensuing exact 24-hour observer window includes the next complete 09:00–15:30 ET quote session.
+
+The gate blocks stale confirmation, insufficient verified free storage, unauthenticated/restricted flags, a widened launch window, changed code, missing marker, and any attempt to reuse the old smoke authorization. Raw/state artifacts have **two-day retention**, with the final integrity-only review retained for three days. Those retention settings do not prove that enough quota is available; the owner must explicitly inspect/download the immutable evidence before expiry.
+
+**Implementation is staged but NOT RUNNING**: no v2 marker has been created, no 24-hour job has started, and no performance data or orders have been accessed.
 
 ## Decision needed
 

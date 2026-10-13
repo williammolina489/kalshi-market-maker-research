@@ -243,5 +243,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e001-v2-smoke-integrity-review
-          path: |\n            smoke-final/smoke-review.json\n            smoke-final/verification-authorization.json
+          path: |
+            smoke-final/smoke-review.json
+            smoke-final/verification-authorization.json
           retention-days: 3

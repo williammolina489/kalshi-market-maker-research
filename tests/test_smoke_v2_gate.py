@@ -105,7 +105,7 @@ def test_launch_at_midday_fails_without_full_next_session():
     auth["earliest_launch_utc"] = (lunchtime - timedelta(minutes=1)).isoformat()
     auth["latest_launch_utc"] = (lunchtime + timedelta(minutes=1)).isoformat()
     auth["storage_confirmed_at_utc"] = (lunchtime - timedelta(minutes=10)).isoformat()
-    with pytest.raises(V2AuthorizationError, match="quote close"):
+    with pytest.raises(V2AuthorizationError, match="quote session"):
         validate_launch(auth, now=lunchtime)
 
 

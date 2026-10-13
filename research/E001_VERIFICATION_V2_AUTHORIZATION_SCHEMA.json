@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "E001 separately approved integrity-only V2 launch authorization",
+  "description": "This schema does not itself approve or launch a run. The actual v2 authorization marker is deliberately absent while budget capacity cannot be verified.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "verification_id",
+    "authorization",
+    "authorized_by",
+    "decision_ref",
+    "public_read_only_only",
+    "official_e001_30_day_authorized",
+    "performance_view_authorized",
+    "orders_authorized",
+    "real_money_authorized",
+    "paid_capacity_authorized",
+    "retention_days",
+    "collector_commit_sha",
+    "earliest_launch_utc",
+    "latest_launch_utc",
+    "confirmed_free_storage_bytes",
+    "storage_confirmed_at_utc",
+    "storage_confirmation_source"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2.0"
+    },
+    "verification_id": {
+      "const": "e001-smoke-verification-v2"
+    },
+    "authorization": {
+      "const": "24h_non_performance_integrity_verification_only"
+    },
+    "authorized_by": {
+      "const": "project_owner"
+    },
+    "decision_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "public_read_only_only": {
+      "const": true
+    },
+    "official_e001_30_day_authorized": {
+      "const": false
+    },
+    "performance_view_authorized": {
+      "const": false
+    },
+    "orders_authorized": {
+      "const": false
+    },
+    "real_money_authorized": {
+      "const": false
+    },
+    "paid_capacity_authorized": {
+      "const": false
+    },
+    "retention_days": {
+      "const": 2
+    },
+    "collector_commit_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "earliest_launch_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "latest_launch_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "confirmed_free_storage_bytes": {
+      "type": "integer",
+      "minimum": 1610612736
+    },
+    "storage_confirmed_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "storage_confirmation_source": {
+      "const": "github_account_billing"
+    }
+  }
+}

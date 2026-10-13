@@ -49,9 +49,9 @@ jobs:
         run: python -m kalshi_mm.smoke_preflight
       - name: Run gated V2 chunk 1 (24h deadline set only after local launch gate)
         run: |
-          cp research/E001_VERIFICATION_V2_AUTHORIZATION.json /tmp/e001-v2-authorization.json
+          mkdir -p smoke-data
+          cp research/E001_VERIFICATION_V2_AUTHORIZATION.json smoke-data/verification-authorization.json
           python -m kalshi_mm.smoke_runner --root smoke-data --chunk 1 --max-minutes 330
-          cp /tmp/e001-v2-authorization.json smoke-data/verification-authorization.json
       - name: Upload chunk 1 raw data
         if: always()
         uses: actions/upload-artifact@v4

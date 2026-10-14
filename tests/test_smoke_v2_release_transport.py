@@ -8,7 +8,6 @@ import subprocess
 import textwrap
 from pathlib import Path
 
-
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "e001_v2_release_raw.sh"
 WORKFLOW = (
     Path(__file__).resolve().parents[1]

@@ -67,7 +67,7 @@ PY
       --pattern "e001-v2-state-$chunk.sha256"
     (cd "$root" && sha256sum --check --status "e001-v2-state-$chunk.sha256")
     # Refuse unexpected file paths before extraction.
-    expected="$(printf '%s\\n' restart.json smoke_runtime.json manifest.json "chunk-summary-$chunk.json" verification-authorization.json | sort)"
+    expected="$(printf '%s\n' restart.json smoke_runtime.json manifest.json "chunk-summary-$chunk.json" verification-authorization.json | sort)"
     actual="$(tar -tzf "$root/e001-v2-state-$chunk.tar.gz" | sort)"
     test "$expected" = "$actual" || { echo "Unsafe or incomplete checkpoint archive" >&2; exit 1; }
     tar -xzf "$root/e001-v2-state-$chunk.tar.gz" -C "$root"

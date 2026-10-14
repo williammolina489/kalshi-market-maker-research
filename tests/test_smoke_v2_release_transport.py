@@ -8,10 +8,14 @@ import subprocess
 import textwrap
 from pathlib import Path
 
-import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "e001_v2_release_raw.sh"
-WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "e001-24h-verification-v2.yml"
+WORKFLOW = (
+    Path(__file__).resolve().parents[1]
+    / ".github"
+    / "workflows"
+    / "e001-24h-verification-v2.yml"
+)
 SHA = "a" * 40
 
 

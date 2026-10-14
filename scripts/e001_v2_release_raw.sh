@@ -39,9 +39,38 @@ PY
       -name "e001-v2-raw-$chunk-part-*" | sort)
     test "${#parts[@]}" -ge 1
     (cd "$root" && sha256sum "observations-chunk-$chunk.jsonl.gz" > "e001-v2-raw-$chunk.sha256")
-    gh release upload "$tag" "${parts[@]}" "$root/e001-v2-raw-$chunk.sha256" --repo "$repo"
-    # Successful upload is required before the next chunk may access its
-    # checkpoint state; failure stops the job and the entire chain.
+    for name in restart.json smoke_runtime.json manifest.json \
+      "chunk-summary-$chunk.json" verification-authorization.json; do
+      test -s "$root/$name"
+    done
+    # State is just Kalshi series dedup IDs and bookkeeping, not market data.
+    # It is also release-backed, so NO Actions artifacts are produced at all.
+    test "$(stat -c %s "$root/restart.json")" -le 16777216 || {
+      echo "Restart state unexpectedly exceeds 16 MiB; integrity stop" >&2
+      exit 1
+    }
+    (cd "$root" && tar -czf "e001-v2-state-$chunk.tar.gz" \
+      restart.json smoke_runtime.json manifest.json \
+      "chunk-summary-$chunk.json" verification-authorization.json)
+    (cd "$root" && sha256sum "e001-v2-state-$chunk.tar.gz" > "e001-v2-state-$chunk.sha256")
+    gh release upload "$tag" "${parts[@]}" "$root/e001-v2-raw-$chunk.sha256" \
+      "$root/e001-v2-state-$chunk.tar.gz" "$root/e001-v2-state-$chunk.sha256" \
+      --repo "$repo"
+    # The next chunk can run only after all assets upload successfully.
+    # Never use --clobber, overwrite an asset, or silently resume a partial set.
+    ;;
+  restore)
+    case "$chunk" in 1|2|3|4|5) ;; *) echo "Invalid checkpoint" >&2; exit 1;; esac
+    mkdir -p "$root"
+    gh release download "$tag" --repo "$repo" --dir "$root" \
+      --pattern "e001-v2-state-$chunk.tar.gz" \
+      --pattern "e001-v2-state-$chunk.sha256"
+    (cd "$root" && sha256sum --check --status "e001-v2-state-$chunk.sha256")
+    # Refuse unexpected file paths before extraction.
+    expected="$(printf '%s\\n' restart.json smoke_runtime.json manifest.json "chunk-summary-$chunk.json" verification-authorization.json | sort)"
+    actual="$(tar -tzf "$root/e001-v2-state-$chunk.tar.gz" | sort)"
+    test "$expected" = "$actual" || { echo "Unsafe or incomplete checkpoint archive" >&2; exit 1; }
+    tar -xzf "$root/e001-v2-state-$chunk.tar.gz" -C "$root"
     ;;
   download-all)
     mkdir -p "$root"
@@ -67,7 +96,7 @@ PY
       "$root/verification-authorization.json" --repo "$repo"
     ;;
   *)
-    echo "usage: $0 init | upload <root> <chunk> | download-all <root> | upload-review <root>" >&2
+    echo "usage: $0 init | upload <root> <chunk> | restore <root> <chunk> | download-all <root> | upload-review <root>" >&2
     exit 2
     ;;
 esac

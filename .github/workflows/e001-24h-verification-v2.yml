@@ -47,7 +47,7 @@ jobs:
               raise SystemExit(0)
           if start.tzinfo is not None and end.tzinfo is not None and start <= now <= end:
               with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-                  output.write("armed=true\\n")
+                  print("armed=true", file=output)
           else:
               print("Not in narrow owner-approved launch interval; safe skip.")
           PY

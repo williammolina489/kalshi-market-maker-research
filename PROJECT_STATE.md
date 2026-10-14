@@ -1,10 +1,10 @@
 # Project State
 
-Last updated: 2026-10-13
+Last updated: 2026-10-14
 
 ## Status
 
-FOUNDATION COMPLETE / V2 VERIFICATION APPROVED CONDITIONALLY BUT STORAGE-BLOCKED / FIRST SMOKE INTEGRITY INSUFFICIENT / E001 PREREGISTERED / PERFORMANCE UNVIEWED / 30D NOT RUNNING
+FOUNDATION COMPLETE / V2 RELEASE-BACKED VERIFICATION OWNER-APPROVED / ONE-TIME LAUNCH OCT 14 17:37 EDT PENDING / E001 PREREGISTERED / PERFORMANCE UNVIEWED / 30D NOT RUNNING
 
 The clean replacement collector is **REBUILT FROM CANONICAL E001 SPECIFICATION**.
 The exact prior implementation was lost; the rebuild is not an exact recovery.
@@ -14,7 +14,7 @@ The exact prior implementation was lost; the rebuild is not an exact recovery.
 - No live orders, funded execution, or real money.
 - No trading credentials or authenticated order client.
 - Public HTTPS GET observation only.
-- Original non-performance 24-hour smoke authorized 2026-10-01; it is complete, its authorization spent.\n- Owner approved one separate 24-hour public-data-only verification on 2026-10-13, conditional on artifact storage verification; it has NOT launched.
+- Original non-performance 24-hour smoke authorized 2026-10-01; it is complete, its authorization spent.\n- Owner approved one separate 24-hour public-data-only verification on 2026-10-13. GitHub Release storage substitution is CI-verified and free of Actions artifact usage; prospective window on Oct 14 is being armed, not yet running.
 - The 30-calendar-day E001 evidence period has **not** been authorized or started.
 - E001 economic performance is **unviewed** and must remain so.
 
@@ -42,20 +42,23 @@ On 2026-10-12 PR #7 fixed another documented overhead problem: inspection of the
 
 These are preventive code improvements, **not** proof of adequate future capture. The original 10,698 gap records remain valid historical evidence, and a separately authorized, bounded non-performance verification run is still required before claiming a passed smoke.
 
-## Second smoke: approved in principle, not launched
+## Approved second smoke, release-backed, launch pending
 
-Owner approved one new 24-hour public GET-only infrastructure verification on 2026-10-13, **subject to confirming available artifact storage**. PR #8 merged on 2026-10-13 as `153e7e5ab434b2c15d01aa48df7cb51a5de2aeb2`. It stages a distinct E001 V2 workflow with a strict offline launch gate, short artifact retention and a *different* authorization-marker filename.
+Owner approved one new 24-hour, performance-blinded, **public HTTPS GET only** infrastructure verification on 2026-10-13, conditioned on avoiding unverified paid resources. Billing screenshots on 2026-10-14 confirmed GitHub Free, 321/2000 included private-runner minutes consumed, Actions billable spend $0, and Actions storage billed as 0/0.5 GB. The first smoke's old ~576.10 MB of evidence artifacts are still present and unchanged.
 
-**The trigger file `research/E001_VERIFICATION_V2_AUTHORIZATION.json` does NOT exist on main. No V2 smoke has been launched or scheduled.** The frozen V2 code is ready; no official E001 evidence or live trading was enabled.
+PR #8 established fail-closed launch/time/trading restrictions. PR #9 merged on 2026-10-14 as `c77a462b84560c20c4dafb0ba960b11afa741119`, replacing ALL V2 Actions artifacts with GitHub draft Release assets. Each raw segment is split to max 512 MiB and SHA-verified; restart checkpoints and immutable hashes are also stored in Release assets. Offline simulated-GitHub tests reconstructed and verified five segments, rejected duplicates and detected corruption. CI and public GET preflight passed. No paid capacity, execution APIs, strategies or frozen experiment rules changed.
 
-The prior October 2–3 run still had approximately 576.10 MB of unexpired artifacts on October 13, of which ~428.5 MB were raw market observations. Free GitHub artifact storage is shared across Actions artifacts/Packages. GitHub account-specific available storage and the account's billing guard are not exposed by the connected GitHub integration. The V2 gate requires a recent account Billing confirmation of at least **1.5 GiB free artifact capacity**, and expressly disallows authorizing paid capacity.
+The distinct V2 authorization marker is to be added ONLY after main is frozen and verified. The planned one-time launch cron is **2026-10-14 21:37 UTC (17:37 EDT)**, with accepted start interval **21:25–22:25 UTC**. This allows an untouched full October 15, 2026 **09:00–15:30 ET** quote session inside the 24-hour observation window. GitHub Actions may delay cron; if it misses the approved hour the collector must NOT start or shift dates. Raw and restart data stay in the separate draft GitHub Release; this does not reuse the October 1 marker.
 
-See `docs/E001_SECOND_SMOKE_VERIFICATION_PROPOSAL.md` for run protocol and `research/E001_VERIFICATION_V2_AUTHORIZATION_SCHEMA.json` for the future, not-yet-created launch marker.
+The first smoke remains REVIEW_REQUIRED with 10,698 legitimate cadence-gap records. Even successful V2 collection does not authorize the E001 30-day official window. Review actual missing 1-Hz slots and manifest replay without viewing economic data.
 
-## Current blocker and exact next step
+See `docs/E001_SECOND_SMOKE_VERIFICATION_PROPOSAL.md` and `research/E001_VERIFICATION_V2_AUTHORIZATION_SCHEMA.json` for frozen V2 conditions.
 
-1. Complete integrity-only interpretation of the existing smoke, including per-stream missed scheduled slot totals and their timing. Treat the recorded gaps as genuine missing observations rather than silently fixing the data.
-2. Owner has conditionally approved a separate V2 integrity-only smoke. **Check available GitHub account artifact capacity and spending guard first.** If at least 1.5 GiB free can be verified, freeze a future narrow evening ET launch window and a distinct authorization marker pinned to the merged V2 collector. If capacity cannot be verified, do not launch or spend money; retain this state as NEEDS_HUMAN.
-3. Only after an adequately verified smoke and a further explicit E001 start decision may the official untouched 30-day evidence window begin.
+## Next permitted actions
+
+1. Commit a single distinct owner-authorized V2 launch marker pinned to this frozen main SHA. Do not modify original E001 authorization.
+2. At Oct 14 17:37 EDT, inspect the actual GitHub run: it must pass gate/preflight, create draft Release, and begin only public GET observations. Otherwise leave stopped and report no launch.
+3. After at least 24h, independently verify all five raw segments, row checksums, source slot counts and 99.5% book gate, with zero backfill or economic analysis.
+4. A separate later owner decision is required for an official 30-day E001 start; real trading is not authorized.
 
 Until then E001 stays PREREGISTERED / NOT RUNNING. Do not calculate strategy P/L, fill economics or promotion metrics.

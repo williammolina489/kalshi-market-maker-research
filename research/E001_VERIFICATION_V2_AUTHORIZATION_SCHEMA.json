@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "E001 separately approved integrity-only V2 launch authorization",
-  "description": "This schema does not itself approve or launch a run. The actual v2 authorization marker is deliberately absent while budget capacity cannot be verified.",
+  "description": "Separate owner-approved 24-hour public GET-only verification, with all evidence transported as draft GitHub Release assets. This schema does not authorize live execution or economic analysis.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -20,9 +20,9 @@
     "collector_commit_sha",
     "earliest_launch_utc",
     "latest_launch_utc",
-    "confirmed_free_storage_bytes",
-    "storage_confirmed_at_utc",
-    "storage_confirmation_source"
+    "storage_backend",
+    "release_payload_public_api_only",
+    "actions_artifacts_enabled"
   ],
   "properties": {
     "schema_version": {
@@ -60,7 +60,7 @@
       "const": false
     },
     "retention_days": {
-      "const": 2
+      "const": 0
     },
     "collector_commit_sha": {
       "type": "string",
@@ -74,16 +74,14 @@
       "type": "string",
       "format": "date-time"
     },
-    "confirmed_free_storage_bytes": {
-      "type": "integer",
-      "minimum": 1610612736
+    "storage_backend": {
+      "const": "github_release_assets"
     },
-    "storage_confirmed_at_utc": {
-      "type": "string",
-      "format": "date-time"
+    "release_payload_public_api_only": {
+      "const": true
     },
-    "storage_confirmation_source": {
-      "const": "github_account_billing"
+    "actions_artifacts_enabled": {
+      "const": false
     }
   }
 }

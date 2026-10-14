@@ -1,0 +1,20 @@
+{
+  "schema_version": "2.0",
+  "verification_id": "e001-smoke-verification-v2",
+  "authorization": "24h_non_performance_integrity_verification_only",
+  "authorized_by": "project_owner",
+  "decision_ref": "Owner explicitly approved one separate 24h read-only Kalshi infrastructure verification in ChatGPT 2026-10-13; 2026-10-14 continuation and GitHub Free billing screenshots confirmed no billable Actions usage. All evidence moved to no-fee GitHub draft Release assets; no paid usage authorized.",
+  "public_read_only_only": true,
+  "official_e001_30_day_authorized": false,
+  "performance_view_authorized": false,
+  "orders_authorized": false,
+  "real_money_authorized": false,
+  "paid_capacity_authorized": false,
+  "retention_days": 0,
+  "storage_backend": "github_release_assets",
+  "release_payload_public_api_only": true,
+  "actions_artifacts_enabled": false,
+  "collector_commit_sha": "2641f84ba5eb4c57b113735d79d12540deb906e6",
+  "earliest_launch_utc": "2026-10-14T21:25:00Z",
+  "latest_launch_utc": "2026-10-14T22:25:00Z"
+}

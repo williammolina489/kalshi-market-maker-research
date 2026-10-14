@@ -1,25 +1,60 @@
-# Do not add the V2 authorization marker until actual GitHub account artifact
-# free capacity has been verified. The first job refuses stale confirmations,
-# outside-window launches, any change in frozen code, or unsafe trading flags.
-# The prior E001 marker is not a trigger for this workflow.
-name: E001 verification V2 — separately gated 24h integrity smoke
+# Runs one prospectively dated, explicitly approved, read-only integrity smoke.
+# The authorization marker is NOT the original E001 24h smoke marker.
+# ALL raw/metadata evidence is archived to a draft GitHub Release: this workflow
+# does NOT use GitHub Actions artifact storage, cache, orders, or paid runners.
+name: E001 V2 read-only 24h integrity verification
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - research/E001_VERIFICATION_V2_AUTHORIZATION.json
+  schedule:
+    # 17:37 ET (EDT) on Oct 14; daily harmless skip after approval window closes.
+    - cron: "37 21 * * *"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: e001-24h-integrity-verification-v2
+  group: e001-v2-read-only-verification
   cancel-in-progress: false
 
 jobs:
+  launch-window:
+    runs-on: ubuntu-latest
+    outputs:
+      armed: ${{ steps.eligible.outputs.armed }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip safely unless distinct authorization exists and future window is open
+        id: eligible
+        run: |
+          echo "armed=false" >> "$GITHUB_OUTPUT"
+          python - <<'PY'
+          import json, pathlib, datetime, os
+          path = pathlib.Path("research/E001_VERIFICATION_V2_AUTHORIZATION.json")
+          if not path.is_file():
+              print("No V2 authorization marker. Safe skip.")
+              raise SystemExit(0)
+          data = json.loads(path.read_text())
+          now = datetime.datetime.now(datetime.UTC)
+          try:
+              start = datetime.datetime.fromisoformat(data["earliest_launch_utc"].replace("Z","+00:00"))
+              end = datetime.datetime.fromisoformat(data["latest_launch_utc"].replace("Z","+00:00"))
+          except (KeyError, ValueError, TypeError):
+              print("Invalid authorization dates; full gate will reject if armed.")
+              raise SystemExit(0)
+          if start.tzinfo is not None and end.tzinfo is not None and start <= now <= end:
+              with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+                  output.write("armed=true\\n")
+          else:
+              print("Not in narrow owner-approved launch interval; safe skip.")
+          PY
+
   chunk1:
+    needs: launch-window
+    if: needs.launch-window.outputs.armed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
@@ -30,47 +65,36 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e .
-      - name: Fail-closed new authorization, account storage, and frozen commit gate
+      - name: Strict V2 scope, pinned SHA, evening time and Release-only storage gate
         run: |
           set -euo pipefail
-          AUTH="research/E001_VERIFICATION_V2_AUTHORIZATION.json"
+          AUTH=research/E001_VERIFICATION_V2_AUTHORIZATION.json
           test -s "$AUTH"
           python -m kalshi_mm.smoke_v2_gate --authorization "$AUTH"
           BASE_SHA="$(python -c 'import json; print(json.load(open("research/E001_VERIFICATION_V2_AUTHORIZATION.json"))["collector_commit_sha"])')"
           git cat-file -e "$BASE_SHA^{commit}"
           git merge-base --is-ancestor "$BASE_SHA" "$GITHUB_SHA"
-          CHANGED="$(git diff --name-only "$BASE_SHA" "$GITHUB_SHA")"
-          test "$CHANGED" = "research/E001_VERIFICATION_V2_AUTHORIZATION.json" || {
-            echo "::error::Collector code changed after frozen verification base; stop."
+          test "$(git diff --name-only "$BASE_SHA" "$GITHUB_SHA")" = "$AUTH" || {
+            echo "::error::Frozen code changed after V2 approval; stop"
             exit 1
           }
-          echo "V2 ONLY: public GET integrity smoke; never E001 30-day evidence or funded trading."
-      - name: Verify public API readiness after authorization
+          test "$(git diff --name-only "$BASE_SHA" "$GITHUB_SHA" | wc -l)" -eq 1
+      - name: Verify live unauthenticated public GET contracts
         run: python -m kalshi_mm.smoke_preflight
-      - name: Run gated V2 chunk 1 (24h deadline set only after local launch gate)
+      - name: Create unique draft evidence release (without paid Actions artifacts)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh init
+      - name: Preserve V2 authorization within the first immutable checkpoint
         run: |
           mkdir -p smoke-data
           cp research/E001_VERIFICATION_V2_AUTHORIZATION.json smoke-data/verification-authorization.json
-          python -m kalshi_mm.smoke_runner --root smoke-data --chunk 1 --max-minutes 330
-      - name: Upload chunk 1 raw data
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e001-v2-smoke-raw-1
-          path: smoke-data/observations-chunk-1.jsonl.gz
-          retention-days: 2
-      - name: Upload chunk 1 state
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e001-v2-smoke-state-1
-          path: |
-            smoke-data/restart.json
-            smoke-data/smoke_runtime.json
-            smoke-data/manifest.json
-            smoke-data/chunk-summary-1.json
-            smoke-data/verification-authorization.json
-          retention-days: 2
+      - name: Public GET-only observer chunk 1
+        run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 1 --max-minutes 330
+      - name: SHA-verify, split and upload raw segment and restart to draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh upload smoke-data 1
 
   chunk2:
     needs: chunk1
@@ -82,31 +106,16 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e .
-      - uses: actions/download-artifact@v4
-        with:
-          name: e001-v2-smoke-state-1
-          path: smoke-data
-      - name: Run chunk 2
+      - name: Restore and verify previous immutable checkpoint from draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh restore smoke-data 1
+      - name: Public GET-only observer chunk 2
         run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 2 --max-minutes 330
-      - name: Upload chunk 2 raw data
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e001-v2-smoke-raw-2
-          path: smoke-data/observations-chunk-2.jsonl.gz
-          retention-days: 2
-      - name: Upload chunk 2 state
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e001-v2-smoke-state-2
-          path: |
-            smoke-data/restart.json
-            smoke-data/smoke_runtime.json
-            smoke-data/manifest.json
-            smoke-data/chunk-summary-2.json
-            smoke-data/verification-authorization.json
-          retention-days: 2
+      - name: SHA-verify, split and upload raw segment and restart to draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh upload smoke-data 2
 
   chunk3:
     needs: chunk2
@@ -118,31 +127,16 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e .
-      - uses: actions/download-artifact@v4
-        with:
-          name: e001-v2-smoke-state-2
-          path: smoke-data
-      - name: Run chunk 3
+      - name: Restore and verify previous immutable checkpoint from draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh restore smoke-data 2
+      - name: Public GET-only observer chunk 3
         run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 3 --max-minutes 330
-      - name: Upload chunk 3 raw data
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e001-v2-smoke-raw-3
-          path: smoke-data/observations-chunk-3.jsonl.gz
-          retention-days: 2
-      - name: Upload chunk 3 state
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e001-v2-smoke-state-3
-          path: |
-            smoke-data/restart.json
-            smoke-data/smoke_runtime.json
-            smoke-data/manifest.json
-            smoke-data/chunk-summary-3.json
-            smoke-data/verification-authorization.json
-          retention-days: 2
+      - name: SHA-verify, split and upload raw segment and restart to draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh upload smoke-data 3
 
   chunk4:
     needs: chunk3
@@ -154,31 +148,16 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e .
-      - uses: actions/download-artifact@v4
-        with:
-          name: e001-v2-smoke-state-3
-          path: smoke-data
-      - name: Run chunk 4
+      - name: Restore and verify previous immutable checkpoint from draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh restore smoke-data 3
+      - name: Public GET-only observer chunk 4
         run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 4 --max-minutes 330
-      - name: Upload chunk 4 raw data
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e001-v2-smoke-raw-4
-          path: smoke-data/observations-chunk-4.jsonl.gz
-          retention-days: 2
-      - name: Upload chunk 4 state
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e001-v2-smoke-state-4
-          path: |
-            smoke-data/restart.json
-            smoke-data/smoke_runtime.json
-            smoke-data/manifest.json
-            smoke-data/chunk-summary-4.json
-            smoke-data/verification-authorization.json
-          retention-days: 2
+      - name: SHA-verify, split and upload raw segment and restart to draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh upload smoke-data 4
 
   chunk5:
     needs: chunk4
@@ -190,60 +169,40 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e .
-      - uses: actions/download-artifact@v4
-        with:
-          name: e001-v2-smoke-state-4
-          path: smoke-data
-      - name: Run chunk 5
+      - name: Restore and verify previous immutable checkpoint from draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh restore smoke-data 4
+      - name: Public GET-only observer chunk 5
         run: python -m kalshi_mm.smoke_runner --root smoke-data --chunk 5 --max-minutes 330
-      - name: Upload chunk 5 raw data
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e001-v2-smoke-raw-5
-          path: smoke-data/observations-chunk-5.jsonl.gz
-          retention-days: 2
-      - name: Upload chunk 5 state
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e001-v2-smoke-state-5
-          path: |
-            smoke-data/restart.json
-            smoke-data/smoke_runtime.json
-            smoke-data/manifest.json
-            smoke-data/chunk-summary-5.json
-            smoke-data/verification-authorization.json
-          retention-days: 2
+      - name: SHA-verify, split and upload raw segment and restart to draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh upload smoke-data 5
 
   integrity-review:
     needs: chunk5
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install -e .
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: e001-v2-smoke-raw-*
-          path: smoke-final
-          merge-multiple: true
-      - uses: actions/download-artifact@v4
-        with:
-          name: e001-v2-smoke-state-5
-          path: smoke-final
-      - name: Verify immutable replay, isolated authorization, and integrity-only review
+      - name: Download and verify final checkpoint
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh restore smoke-final 5
+      - name: Download all release raw parts and validate SHA-256
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh download-all smoke-final
+      - name: Fail-closed integrity replay; economic performance remains blinded
         run: |
           test -s smoke-final/verification-authorization.json
           python -m kalshi_mm.smoke_review --root smoke-final
-      - name: Upload integrity review
-        uses: actions/upload-artifact@v4
-        with:
-          name: e001-v2-smoke-integrity-review
-          path: |
-            smoke-final/smoke-review.json
-            smoke-final/verification-authorization.json
-          retention-days: 3
+      - name: Upload integrity-only review to draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/e001_v2_release_raw.sh upload-review smoke-final

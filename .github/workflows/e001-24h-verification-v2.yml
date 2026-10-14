@@ -10,8 +10,9 @@ on:
     paths:
       - research/E001_VERIFICATION_V2_AUTHORIZATION.json
   schedule:
-    # 17:37 ET (EDT) on Oct 14; daily harmless skip after approval window closes.
-    - cron: "37 21 * * *"
+    # One target day only: Oct 14 at 17:37 EDT. Year-free cron would repeat
+    # next October, but the 2026-dated authorization safely skips by then.
+    - cron: "37 21 14 10 *"
 
 permissions:
   contents: write

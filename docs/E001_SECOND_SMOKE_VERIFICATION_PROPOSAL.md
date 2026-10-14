@@ -1,7 +1,7 @@
 # Proposed E001 Infrastructure Smoke Verification V2 — Approval Required
 
 **Draft prepared:** 2026-10-13  
-**Current state:** OWNER APPROVED IN PRINCIPLE 2026-10-13 — LAUNCH BLOCKED PENDING VERIFIED STORAGE; NOT SCHEDULED OR RUNNING  
+**Current state:** OWNER APPROVED 2026-10-13 — RELEASE-BACKED READ-ONLY V2 READY FOR OCTOBER 14 ONE-TIME START WINDOW (NOT YET RUNNING)  
 **Permitted scope if separately authorized:** public, unauthenticated HTTPS GET observation; integrity only  
 **Explicitly excluded:** orders, credentials, real money, strategy economics, official E001 30-day evidence, market/strategy changes
 
@@ -61,20 +61,34 @@ Only following explicit project-owner approval, create a **new** immutable autho
 Even if this *separate* smoke passes, official E001 30-consecutive-calendar-day evidence collection remains **NOT STARTED** and requires a later explicit owner start decision. Economic performance inspection and real-money trading remain prohibited. E002 is not created here.
 
 
-## Owner approval and explicit storage blocker (2026-10-13)
+## Owner authorization and zero-paid-storage implementation (2026-10-14)
 
-The project owner approved **one additional read-only, 24-hour Kalshi infrastructure smoke**, conditioned on storage checks; no 30-day E001 window or paid capacity was approved.
+The owner authorized one new **24-hour, read-only, non-performance** Kalshi infrastructure verification on October 13, subject to no unverified billed capacity and preserving the original 30-day E001 safety gate.
 
-At inspection on October 13, the prior run still retained **576.10 MB** of GitHub Actions artifacts, including approximately **428.5 MB** of raw source segments. Free GitHub accounts include **500 MB** of shared Actions/Packages artifact storage; GitHub Pro includes **1 GB**. The connected GitHub API does not expose the owner's remaining account-wide free artifact capacity or any billing cap. A near-complete 23,400-slot quote session can generate materially more raw market data than the original ~10,597-book-batch test.
+### Billing evidence
 
-**Do not launch or commit the trigger marker yet.** The new CI-tested workflow `.github/workflows/e001-24h-verification-v2.yml` is installed only on this draft branch; its trigger is a separate **currently absent** `research/E001_VERIFICATION_V2_AUTHORIZATION.json` file, not the spent October 1 smoke marker. A new marker may be created only after GitHub account Billing confirms at least **1.5 GiB additional unallocated artifact storage**, a recent timestamp, and zero paid-capacity authorization. If that capacity is unavailable, keep this experiment stopped and consider a separately approved storage architecture instead of charging the user.
+Screenshots dated 2026-10-14 show GitHub Free, `321 / 2,000` included private-repository Actions minutes consumed, Actions billed usage `$0` after discounts, and `0 GB used / 0.5 GB included` as displayed in GitHub's billing-period storage meter. That meter does **not** prove physical storage of old Actions artifacts is zero; 576.10 MB of unexpired original smoke artifacts were verified separately via the original run's artifacts endpoint. Original evidence was NOT deleted or altered.
 
-The marker must conform to `research/E001_VERIFICATION_V2_AUTHORIZATION_SCHEMA.json`. Its `collector_commit_sha` must pin the approved V2 implementation **before** the marker is committed to `main`; the launch gate checks that only the authorization file changed between that frozen commit and the launch SHA. A narrow predeclared evening New York launch interval is required so the ensuing exact 24-hour observer window includes the next complete 09:00–15:30 ET quote session.
+GitHub's published documentation says standard GitHub-hosted runners for a **public repository** are free, and GitHub Release assets are limited to **2 GiB per individual asset**, but have **no total-size or download-bandwidth limit**: https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases . Actions/Packages shared artifact storage is NOT used by the new V2 workflow.
 
-The gate blocks stale confirmation, insufficient verified free storage, unauthenticated/restricted flags, a widened launch window, changed code, missing marker, and any attempt to reuse the old smoke authorization. Raw/state artifacts have **two-day retention**, with the final integrity-only review retained for three days. Those retention settings do not prove that enough quota is available; the owner must explicitly inspect/download the immutable evidence before expiry.
+### Implemented transport
 
-**Implementation is staged but NOT RUNNING**: no v2 marker has been created, no 24-hour job has started, and no performance data or orders have been accessed.
+- The updated V2 workflow archives **all raw gzip segments AND all restart checkpoints** in a **draft GitHub Release** tied to the one authorization commit. It no longer contains either `actions/upload-artifact` or `actions/download-artifact`.
+- Each raw gzip segment is verified against the collector's SHA-256 manifest before splitting into release parts no larger than **512 MiB**. All files are uploaded without `--clobber`. Restart checkpoints are packed with the runtime state, manifest, chunk summary and V2 authorization marker and are accompanied by SHA-256 checksums.
+- Every subsequent runner verifies its checkpoint archive hash and member allowlist before resuming. Final review downloads every raw part, reconstructs and verifies each gzip digest, validates gzip framing, and performs the original hash-manifest + row-level immutable replay. Truncation, corruption, missing parts, expired data or conflicting release tags stop evidence collection/review without backfill.
+- The transport is tested offline using a simulated GitHub Release service, including duplicate-asset and corrupted-checkpoint fail-closed scenarios. CI passes; no trading logic, performance analysis or live orders were added.
+- GitHub `contents: write` scope is used solely by the gated V2 workflow to create/upload the evidence Release. Original experiment raw data remain untouched.
 
-## Decision needed
+### One-time approved launch plan
 
-The owner may choose to approve the preparation of a separate, dated, read-only 24h non-performance verification protocol, **or** leave Kalshi stopped. This draft does not itself approve either choice, select dates, arm a workflow, or spend money.
+- **Eligible date:** Wednesday 2026-10-14 after quote close; quote window reviewed is Thursday 2026-10-15 **09:00–15:30 America/New_York**.
+- **Frozen V2 gate:** exact launch interval **2026-10-14 21:25:00Z to 22:25:00Z** (17:25–18:25 EDT); automatically checks 24h duration, frozen collector commit, public GET-only scope, no real-money/order/economic authorization, no Actions artifacts and a distinct marker.
+- **Trigger:** the V2 workflow's GitHub Actions cron `37 21 14 10 *` (17:37 EDT on October 14). The authorization marker is staged by an explicit owner-approved Git commit in main before this time. A marker push outside the authorized window is safely skipped. If GitHub's scheduled start is delayed beyond 18:25 EDT, it stops with **no data collection** rather than shifting the window.
+- **Evidence storage:** draft GitHub Release `kalshi-e001-v2-<authorization-commit-prefix>`, using public API responses only. No paid resources, sensitive trading credentials, or live execution.
+- **Review:** integrity-only, performance-blinded, with original 99.5% orderbook gate unchanged. The official **30-day E001 evidence window remains unstarted**, even if this smoke finishes successfully.
+
+This protocol does not claim that the 24-hour smoke is already running or that coverage will pass; the actual GitHub run ID and artifact checks must be verified after the scheduled trigger. Because real-world GitHub Actions scheduling and REST collection can have delays, the result can still be `INFRASTRUCTURE NOT VERIFIED` despite a syntactically successful workflow.
+
+## Follow-through
+
+After the V2 run starts, check that the first chunk has a live run ID and an owner-scoped draft Release. After the run finishes, download and replay all raw shards, verify intact manifests and report genuine scheduled-slot coverage. Do not launch another run or start official E001 evidence without another explicit owner decision.

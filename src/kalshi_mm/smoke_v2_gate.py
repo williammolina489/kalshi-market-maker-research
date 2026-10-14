@@ -14,11 +14,9 @@ from zoneinfo import ZoneInfo
 
 ET = ZoneInfo("America/New_York")
 AUTHORIZATION = "24h_non_performance_integrity_verification_only"
-# Based on original raw artifacts >428 MB with only ~10.6k book batches.
-# Future full-coverage collection can exceed 1 GiB, so require substantial
-# additional verified free storage for immutable segments and restart state.
-MIN_FREE_BYTES = 1_610_612_736  # 1.5 GiB
-STORAGE_CONFIRMATION_MAX_AGE = timedelta(hours=24)
+# All raw observation and restart data use GitHub Release assets, not the
+# 500 MB Actions artifact allowance. Assets are split below 2 GiB each.
+RELEASE_STORAGE_BACKEND = "github_release_assets"
 
 
 class V2AuthorizationError(ValueError):
@@ -52,7 +50,10 @@ def validate_launch(authorization: dict[str, object], *, now: datetime) -> dict[
         "orders_authorized": False,
         "real_money_authorized": False,
         "paid_capacity_authorized": False,
-        "retention_days": 2,
+        "retention_days": 0,
+        "storage_backend": RELEASE_STORAGE_BACKEND,
+        "release_payload_public_api_only": True,
+        "actions_artifacts_enabled": False,
     }
     for key, expected in required.items():
         if authorization.get(key) != expected:
@@ -90,23 +91,19 @@ def validate_launch(authorization: dict[str, object], *, now: datetime) -> dict[
     if not 16 <= local_start.hour <= 22:
         raise V2AuthorizationError("launch must be after today's quote close")
 
-    confirmed_at = _timestamp(
-        authorization.get("storage_confirmed_at_utc"), "storage_confirmed_at_utc"
-    )
-    if confirmed_at > now or now - confirmed_at > STORAGE_CONFIRMATION_MAX_AGE:
-        raise V2AuthorizationError("recent GitHub account storage confirmation required")
-    available = authorization.get("confirmed_free_storage_bytes")
-    if type(available) is not int or available < MIN_FREE_BYTES:
-        raise V2AuthorizationError("insufficient confirmed free artifact storage")
-    if authorization.get("storage_confirmation_source") != "github_account_billing":
-        raise V2AuthorizationError("storage must be verified from GitHub account billing")
+    # The owner approved read-only public data, not paid capacity.
+    # The complete raw/restart evidence must be stored as draft Release assets.
+    # Workflow must never use upload-artifact or Actions cache for this run.
+    if authorization.get("release_payload_public_api_only") is not True:
+        raise V2AuthorizationError("release data must contain public API responses only")
+
     return {
         "verification_id": "e001-smoke-verification-v2",
         "authorization": AUTHORIZATION,
         "window": "authorized_future_24h",
         "collector_commit_sha": collector_commit,
         "public_read_only_only": "true",
-        "storage_gate": "confirmed",
+        "storage_gate": "release_assets_no_actions_artifacts",
     }
 
 
